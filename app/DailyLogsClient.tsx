@@ -1,26 +1,34 @@
 "use client";
 
-import DataTable from "../components/DataTable";
-import { Button } from "../components/ui/button";
-import { useState } from "react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../components/ui/dialog";
-import { Input } from "../components/ui/input";
-import { Plus, PhilippinePeso, Search } from "lucide-react";
-import StatCard from "../components/StatCard";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select"
-import { SubmitHandler, useForm } from "react-hook-form";
+import {
+    Field,
+    FieldDescription,
+    FieldGroup,
+    FieldError,
+    FieldLabel
+} from "@/components/ui/field";
+import { Textarea } from "@/components/ui/textarea";
 import { zodResolver } from "@hookform/resolvers/zod";
-import * as z from "zod";
+import { PhilippinePeso, Plus, Search } from "lucide-react";
 import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { SubmitHandler, useForm } from "react-hook-form";
+import * as z from "zod";
+import DataTable from "../components/DataTable";
+import StatCard from "../components/StatCard";
+import { Button } from "../components/ui/button";
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "../components/ui/dialog";
+import { Input } from "../components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "../components/ui/tabs";
 import { createLog } from "./actions/logs";
 
 const logSchema = z.object({
     log_date: z.string().min(1, "Log date is required"),
     start_time: z.string().min(1, "Start time is required"),
     end_time: z.string().min(1, "End time is required"),
-    opening_reading: z.coerce.number().min(0, "Opening reading must be 0 or more"),
-    closing_reading: z.coerce.number().min(0, "Closing reading must be 0 or more"),
+    opening_reading: z.coerce.number().gt(0, "Opening reading must be greater than 0"),
+    closing_reading: z.coerce.number().gt(0, "Closing reading must be greater than 0"),
     user_notes: z.string().optional()
 }).refine((data) => data.closing_reading >= data.opening_reading, {
     message: "Closing reading must be greater than or equal to opening reading",
@@ -41,7 +49,7 @@ const columns = [
 
 export default function DailyLogsClient({ initialData }: { initialData: any[] }) {
     const router = useRouter();
-    const [isModalOpen, setIsModalOpen] = useState(false); 
+    const [isModalOpen, setIsModalOpen] = useState(false);
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     type LogFormInput = z.input<typeof logSchema>;
@@ -58,13 +66,13 @@ export default function DailyLogsClient({ initialData }: { initialData: any[] })
             log_date: new Date().toISOString().split("T")[0],
             start_time: "08:00",
             end_time: "17:00",
-            opening_reading: 0,
-            closing_reading: 0,
+            opening_reading: undefined,
+            closing_reading: undefined,
             user_notes: ""
         }
     });
 
-    const onSubmit: SubmitHandler<LogFormValues> = async (data: LogFormValues) => { 
+    const onSubmit: SubmitHandler<LogFormValues> = async (data: LogFormValues) => {
         setIsSubmitting(true);
         try {
             // 2. Call the action directly (no more fetch/URL needed!)
@@ -140,22 +148,49 @@ export default function DailyLogsClient({ initialData }: { initialData: any[] })
                         <DialogTitle>Today's Operation Log</DialogTitle>
                     </DialogHeader>
                     <form onSubmit={handleSubmit(onSubmit)} className="space-y-4 py-4">
-                        <Input type="date" placeholder="Log Date" {...register("log_date")} />
-                        <div className="grid grid-cols-2 gap-4">
-                            <Input type="time" placeholder="Start Time" {...register("start_time")} />
-                            <Input type="time" placeholder="End Time" {...register("end_time")} />
-                        </div>
-                        <Input type="number" placeholder="Opening Reading" {...register("opening_reading")} />
-                        <Input type="number" placeholder="Closing Reading" {...register("closing_reading")} />
-                        <Input placeholder="User Notes" {...register("user_notes")} />
-                    <DialogFooter>
+                        <FieldGroup>
+                            <Field>
+                                <FieldLabel>Log Date</FieldLabel>
+                                <Input type="date" placeholder="Log Date" {...register("log_date")} />
+                                {errors.log_date && <FieldError>{errors.log_date.message}</FieldError>}
+                            </Field>
+                            <div className="grid grid-cols-2 gap-4">
+                                <Field>
+                                    <FieldLabel>Start Time</FieldLabel>
+                                    <Input type="time" placeholder="Start Time" {...register("start_time")} />
+                                    {errors.start_time && <FieldError>{errors.start_time.message}</FieldError>}
+                                </Field>
+                                <Field>
+                                    <FieldLabel>End Time</FieldLabel>
+                                    <Input type="time" placeholder="End Time" {...register("end_time")} />
+                                    {errors.end_time && <FieldError>{errors.end_time.message}</FieldError>}
+                                </Field>
+                            </div>
+                            <Field>
+                                <FieldLabel>Opening Reading</FieldLabel>
+                                <Input type="number" step="any" placeholder="Opening Reading" {...register("opening_reading")} />
+                                {errors.opening_reading && <FieldError>{errors.opening_reading.message}</FieldError>}
+                            </Field>
+                            <Field>
+                                <FieldLabel>Closing Reading</FieldLabel>
+                                <Input type="number" step="any" placeholder="Closing Reading" {...register("closing_reading")} />
+                                {errors.closing_reading && <FieldError>{errors.closing_reading.message}</FieldError>}
+                            </Field>
+
+                            <Field>
+                                <FieldLabel>User Notes</FieldLabel>
+                                <Textarea id="textarea-message" placeholder="Type your notes here." {...register("user_notes")} />
+                                {errors.user_notes && <FieldError>{errors.user_notes.message}</FieldError>}
+                            </Field>
+                        </FieldGroup>
+                        <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
                                 Cancel
                             </Button>
                             <Button type="submit" disabled={isSubmitting}>
                                 {isSubmitting ? "Saving..." : "Save Log"}
                             </Button>
-                    </DialogFooter>
+                        </DialogFooter>
                     </form>
                 </DialogContent>
             </Dialog>
