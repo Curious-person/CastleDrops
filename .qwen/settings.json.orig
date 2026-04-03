@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(steen3d.itch.io)"
+    ]
+  }
+}

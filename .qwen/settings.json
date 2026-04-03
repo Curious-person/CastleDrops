@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "WebFetch(steen3d.itch.io)",
+      "Bash(npm run *)"
+    ]
+  },
+  "$version": 3
+}
