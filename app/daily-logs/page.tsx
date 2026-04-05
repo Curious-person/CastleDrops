@@ -15,6 +15,8 @@ type Log = {
     payment_method: string;
     fulfillment_type: string;
     status: "ongoing" | "delivered" | "cancelled" | null;
+    session_id: string | null;
+    session_address: string | null;
 };
 
 async function fetchDailyLogs(query?: string, sort?: string) {

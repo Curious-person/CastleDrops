@@ -13,12 +13,39 @@ export async function createLog(formData: {
     payment_method: string | null;
     fulfillment_type: string | null;
     status?: string;
+    session_id?: string | null;
+    session_address?: string | null;
 }) {
     const supabase = await createClient();
 
     const { error } = await supabase
         .from("daily_logs")
         .insert([{ ...formData, status: formData.status ?? "ongoing" }]);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/daily-logs");
+    return { success: true };
+}
+
+export async function createLogsBulk(logs: {
+    log_date: string;
+    container_type: string | null;
+    water_type: string | null;
+    customer_id: string | null;
+    customer_name: string;
+    customer_address: string;
+    payment_method: string | null;
+    fulfillment_type: string | null;
+    status?: string;
+    session_id?: string | null;
+    session_address?: string | null;
+}[]) {
+    const supabase = await createClient();
+
+    const { error } = await supabase
+        .from("daily_logs")
+        .insert(logs.map(l => ({ ...l, status: l.status ?? "ongoing" })));
 
     if (error) throw new Error(error.message);
 
@@ -35,6 +62,8 @@ export async function updateLog(id: number, formData: {
     customer_address: string;
     payment_method: string | null;
     fulfillment_type: string | null;
+    session_id?: string | null;
+    session_address?: string | null;
 }) {
     const supabase = await createClient();
 
@@ -70,6 +99,34 @@ export async function updateLogStatus(id: number, status: "ongoing" | "delivered
         .from("daily_logs")
         .update({ status })
         .eq("id", id);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/daily-logs");
+    return { success: true };
+}
+
+export async function deleteSession(sessionId: string) {
+    const supabase = await createClient();
+
+    const { error } = await supabase
+        .from("daily_logs")
+        .delete()
+        .eq("session_id", sessionId);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/daily-logs");
+    return { success: true };
+}
+
+export async function updateSession(sessionId: string, address: string) {
+    const supabase = await createClient();
+
+    const { error } = await supabase
+        .from("daily_logs")
+        .update({ session_address: address, customer_address: address })
+        .eq("session_id", sessionId);
 
     if (error) throw new Error(error.message);
 
