@@ -54,6 +54,8 @@ type SessionGroup = {
     onEdit: (id: string, address: string) => void;
 };
 
+type NewLog = Omit<DailyLog, "id">;
+
 // ─── Label / color maps ───────────────────────────────────────────────────────
 
 const CONTAINER_LABELS: Record<string, string> = { round: "Round", flat: "Flat" };
@@ -488,7 +490,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
 
     // Session State
     const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
-    const [stagedLogs, setStagedLogs] = useState<DailyLog[]>([]);
+    const [stagedLogs, setStagedLogs] = useState<NewLog[]>([]);
     const [isSavingSession, setIsSavingSession] = useState(false);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);

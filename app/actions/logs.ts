@@ -12,7 +12,11 @@ export async function createLog(formData: {
     customer_address: string;
     payment_method: string | null;
     fulfillment_type: string | null;
-    status?: string;
+    quantity?: number;
+    price_per_gallon?: number | null;
+    total_gallons?: number | null;
+    total_price?: number | null;
+    status?: string | null;
     session_id?: string | null;
     session_address?: string | null;
 }) {
@@ -37,7 +41,11 @@ export async function createLogsBulk(logs: {
     customer_address: string;
     payment_method: string | null;
     fulfillment_type: string | null;
-    status?: string;
+    quantity?: number;
+    price_per_gallon?: number | null;
+    total_gallons?: number | null;
+    total_price?: number | null;
+    status?: string | null;
     session_id?: string | null;
     session_address?: string | null;
 }[]) {
