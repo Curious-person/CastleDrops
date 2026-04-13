@@ -4,7 +4,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useDebouncedCallback } from "use-debounce";
 import {
     PhilippinePeso, Plus, Search, Trash, Eye,
-    CheckCircle2, XCircle, RotateCcw, Clock, PackageCheck, PackageX, Package,
+    CheckCircle2, XCircle, RotateCcw, Clock, PackageCheck, Package,
     Edit, MapPin
 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -43,6 +43,15 @@ type DailyLog = {
     status: OrderStatus | null;
     session_id: string | null;
     session_address: string | null;
+};
+
+type SessionGroup = {
+    sessionId: string;
+    address: string;
+    date: string;
+    logs: DailyLog[];
+    onDelete: (id: string) => void;
+    onEdit: (id: string, address: string) => void;
 };
 
 // ─── Label / color maps ───────────────────────────────────────────────────────
@@ -241,7 +250,7 @@ function TallyModal({ open, onClose, logs }: { open: boolean; onClose: () => voi
 }
 
 function SessionCard({ group, ongoingCols, deliveredCols, cancelledCols }: {
-    group: any,
+    group: SessionGroup,
     ongoingCols: Column<DailyLog>[],
     deliveredCols: Column<DailyLog>[],
     cancelledCols: Column<DailyLog>[]
@@ -456,16 +465,6 @@ function buildBaseColumns(): Column<DailyLog>[] {
     ];
 }
 
-// ─── Tab badge ────────────────────────────────────────────────────────────────
-
-function TabCount({ count, color }: { count: number; color: string }) {
-    if (count === 0) return null;
-    return (
-        <span className={`ml-1.5 inline-flex items-center justify-center min-w-[18px] h-[18px] px-1 rounded-full text-[10px] font-bold ${color}`}>
-            {count}
-        </span>
-    );
-}
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
@@ -489,7 +488,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
 
     // Session State
     const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
-    const [stagedLogs, setStagedLogs] = useState<any[]>([]);
+    const [stagedLogs, setStagedLogs] = useState<DailyLog[]>([]);
     const [isSavingSession, setIsSavingSession] = useState(false);
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
@@ -604,10 +603,6 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
         sessionStorage.setItem("staged_session_logs", JSON.stringify(updated));
     };
 
-    // ── Filtered data by status ──────────────────────────────────────────────
-    const ongoingLogs   = initialData.filter((l) => !l.status || l.status === "ongoing");
-    const deliveredLogs = initialData.filter((l) => l.status === "delivered");
-    const cancelledLogs = initialData.filter((l) => l.status === "cancelled");
 
     // ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -674,14 +669,6 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
 
     // ── Grouping Logic ───────────────────────────────────────────────────────
     
-    type SessionGroup = {
-        sessionId: string;
-        address: string;
-        date: string;
-        logs: DailyLog[];
-        onDelete: (id: string) => void;
-        onEdit: (id: string, address: string) => void;
-    };
 
     const groupLogsBySession = (logs: DailyLog[]): SessionGroup[] => {
         const groups: Record<string, SessionGroup> = {};
@@ -708,7 +695,11 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
 
     const handleSearch = useDebouncedCallback((term: string) => {
         const params = new URLSearchParams(searchParams.toString());
-        term ? params.set("query", term) : params.delete("query");
+        if (term) {
+            params.set("query", term);
+        } else {
+            params.delete("query");
+        }
         router.push(`${pathname}?${params.toString()}`);
     }, 300);
 
@@ -1267,17 +1258,6 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
     );
 }
 
-// ─── Empty state ──────────────────────────────────────────────────────────────
-
-function EmptyState({ icon, title, desc }: { icon: React.ReactNode; title: string; desc: string }) {
-    return (
-        <div className="flex flex-col items-center justify-center py-16 gap-3 text-center px-4">
-            {icon}
-            <p className="text-gray-600 font-medium">{title}</p>
-            <p className="text-gray-400 text-sm">{desc}</p>
-        </div>
-    );
-}
 
 // ─── Status badge for view modal ─────────────────────────────────────────────
 

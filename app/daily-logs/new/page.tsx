@@ -9,7 +9,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createLog } from "@/app/actions/logs";
 import { format } from "date-fns";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -123,7 +122,6 @@ function OptionCard({
     icon,
     label,
     desc,
-    accentColor = "#2FA9D9",
     wide = false,
 }: {
     selected: boolean;
@@ -131,7 +129,6 @@ function OptionCard({
     icon: string;
     label: string;
     desc: string;
-    accentColor?: string;
     wide?: boolean;
 }) {
     return (
@@ -196,10 +193,6 @@ function MultiStepForm() {
         }
     };
 
-    const calculatePricePerUnit = (): number => {
-        if (!formData.water_type) return 0;
-        return WATER_PRICE_PER_GALLON[formData.water_type];
-    };
 
     const calculateTotalPrice = (): number => {
         if (!formData.water_type || !formData.container_type) return 0;
