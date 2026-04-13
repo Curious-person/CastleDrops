@@ -31,6 +31,10 @@ type DailyLog = {
     log_date: string;
     container_type: string;
     water_type: string;
+    quantity: number;
+    price_per_gallon: number | null;
+    total_gallons: number | null;
+    total_price: number | null;
     customer_id: string | null;
     customer_name: string;
     customer_address: string;
@@ -139,17 +143,120 @@ function StatusModal({ open, onClose, onConfirm, isLoading, targetStatus, logNam
     );
 }
 
-function SessionCard({ group, ongoingCols, deliveredCols, cancelledCols }: { 
-    group: any, 
+// ─── Tally Modal ──────────────────────────────────────────────────────────────
+
+function TallyModal({ open, onClose, logs }: { open: boolean; onClose: () => void; logs: DailyLog[] }) {
+    if (!open) return null;
+
+    // Filter out cancelled logs for tally
+    const activeLogs = logs.filter((l) => l.status !== "cancelled");
+
+    // Group by water_type + container_type
+    const tallyMap: Record<string, { water: string; container: string; quantity: number; totalGallons: number; totalPrice: number; count: number }> = {};
+
+    activeLogs.forEach((log) => {
+        const key = `${log.water_type}-${log.container_type}`;
+        if (!tallyMap[key]) {
+            tallyMap[key] = {
+                water: log.water_type,
+                container: log.container_type,
+                quantity: 0,
+                totalGallons: 0,
+                totalPrice: 0,
+                count: 0,
+            };
+        }
+        tallyMap[key].quantity += log.quantity ?? 0;
+        tallyMap[key].totalGallons += log.total_gallons ?? 0;
+        tallyMap[key].totalPrice += log.total_price ?? 0;
+        tallyMap[key].count += 1;
+    });
+
+    const tallyItems = Object.values(tallyMap);
+    const grandTotal = tallyItems.reduce((sum, item) => sum + item.totalPrice, 0);
+    const totalOrders = activeLogs.length;
+
+    return (
+        <Dialog open={open} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-lg max-w-[95vw]">
+                <DialogHeader>
+                    <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                        <PackageCheck className="w-5 h-5 text-emerald-600" />
+                        Session Tally
+                    </DialogTitle>
+                </DialogHeader>
+
+                <div className="space-y-4">
+                    {/* Summary cards */}
+                    <div className="grid grid-cols-2 gap-3">
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-[#2FA9D9]/5 to-[#76D4F9]/5 border border-[#2FA9D9]/20">
+                            <div className="text-xs text-gray-500">Total Orders</div>
+                            <div className="text-2xl font-bold text-[#2FA9D9]">{totalOrders}</div>
+                        </div>
+                        <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-50/50 border border-emerald-200">
+                            <div className="text-xs text-gray-500">Grand Total</div>
+                            <div className="text-2xl font-bold text-emerald-600">₱{grandTotal.toLocaleString()}</div>
+                        </div>
+                    </div>
+
+                    {/* Tally breakdown */}
+                    {tallyItems.length > 0 ? (
+                        <div className="space-y-2">
+                            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Breakdown by Type</label>
+                            {tallyItems.map((item, idx) => (
+                                <div key={idx} className="p-3 rounded-xl bg-white border border-gray-100">
+                                    <div className="flex items-center justify-between mb-2">
+                                        <div className="flex items-center gap-2">
+                                            <Badge value={item.container} labels={CONTAINER_LABELS} colors={CONTAINER_COLORS} />
+                                            <Badge value={item.water} labels={WATER_LABELS} colors={WATER_COLORS} />
+                                        </div>
+                                        <span className="text-xs text-gray-400">{item.count} order{item.count > 1 ? "s" : ""}</span>
+                                    </div>
+                                    <div className="flex justify-between items-center text-sm">
+                                        <span className="text-gray-500">
+                                            {item.quantity} containers × {item.totalGallons} gal total
+                                        </span>
+                                        <span className="font-bold text-[#2FA9D9]">
+                                            ₱{item.totalPrice.toLocaleString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="py-8 text-center text-gray-400 text-sm">
+                            No active orders to tally
+                        </div>
+                    )}
+                </div>
+
+                <DialogFooter className="pt-4 border-t border-gray-100">
+                    <Button variant="outline" onClick={onClose} className="w-full">
+                        Close
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+function SessionCard({ group, ongoingCols, deliveredCols, cancelledCols }: {
+    group: any,
     ongoingCols: Column<DailyLog>[],
     deliveredCols: Column<DailyLog>[],
     cancelledCols: Column<DailyLog>[]
 }) {
     const [isExpanded, setIsExpanded] = useState(false);
+    const [showTally, setShowTally] = useState(false);
 
     const ongoing = group.logs.filter((l: DailyLog) => !l.status || l.status === "ongoing");
     const delivered = group.logs.filter((l: DailyLog) => l.status === "delivered");
     const cancelled = group.logs.filter((l: DailyLog) => l.status === "cancelled");
+
+    const handleGenerateTally = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        setShowTally(true);
+    };
 
     return (
         <div className="border border-gray-100 rounded-xl mb-4 overflow-hidden shadow-sm bg-white hover:border-[#2FA9D9]/30 transition-all">
@@ -177,6 +284,14 @@ function SessionCard({ group, ongoingCols, deliveredCols, cancelledCols }: {
                     </div>
                 </div>
                 <div className="mt-3 sm:mt-0 flex items-center gap-2">
+                    <Button
+                        variant="ghost" size="sm"
+                        onClick={handleGenerateTally}
+                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
+                        title="Generate Tally"
+                    >
+                        <PackageCheck className="w-4 h-4" />
+                    </Button>
                     <Button
                         variant="ghost" size="sm"
                         onClick={(e) => {
@@ -255,6 +370,9 @@ function SessionCard({ group, ongoingCols, deliveredCols, cancelledCols }: {
                     </Tabs>
                 </div>
             )}
+
+            {/* Tally Modal */}
+            <TallyModal open={showTally} onClose={() => setShowTally(false)} logs={group.logs} />
         </div>
     );
 }
@@ -291,9 +409,35 @@ function buildBaseColumns(): Column<DailyLog>[] {
             render: (value) => <Badge value={String(value)} labels={CONTAINER_LABELS} colors={CONTAINER_COLORS} />,
         },
         {
+            title: "Qty",
+            key: "quantity",
+            render: (value) => (
+                <span className="font-semibold text-sm text-gray-800">{value ?? "—"}</span>
+            ),
+        },
+        {
             title: "Water",
             key: "water_type",
             render: (value) => <Badge value={String(value)} labels={WATER_LABELS} colors={WATER_COLORS} />,
+        },
+        {
+            title: "Price/gal",
+            key: "price_per_gallon",
+            render: (value) => (
+                <span className="text-sm text-gray-700">{value ? `₱${value}` : "—"}</span>
+            ),
+        },
+        {
+            title: "Total",
+            key: "total_price",
+            render: (value, item: DailyLog) => {
+                const total = item.total_price ?? 0;
+                return (
+                    <span className="font-bold text-sm text-[#2FA9D9]">
+                        ₱{total.toLocaleString()}
+                    </span>
+                );
+            },
         },
         {
             title: "Payment",
@@ -785,9 +929,31 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                                     <Badge value={selectedLog.container_type} labels={CONTAINER_LABELS} colors={CONTAINER_COLORS} />
                                 </div>
                                 <div className="flex justify-between border-b pb-2">
+                                    <span className="text-gray-500">Quantity</span>
+                                    <span className="font-medium">{selectedLog.quantity ?? 1} container{(selectedLog.quantity ?? 1) > 1 ? "s" : ""}</span>
+                                </div>
+                                <div className="flex justify-between border-b pb-2">
                                     <span className="text-gray-500">Water Type</span>
                                     <Badge value={selectedLog.water_type} labels={WATER_LABELS} colors={WATER_COLORS} />
                                 </div>
+                                {selectedLog.price_per_gallon && (
+                                    <div className="flex justify-between border-b pb-2">
+                                        <span className="text-gray-500">Price per Gallon</span>
+                                        <span className="font-medium">₱{selectedLog.price_per_gallon}</span>
+                                    </div>
+                                )}
+                                {selectedLog.total_gallons && (
+                                    <div className="flex justify-between border-b pb-2">
+                                        <span className="text-gray-500">Total Gallons</span>
+                                        <span className="font-medium">{selectedLog.total_gallons} gal</span>
+                                    </div>
+                                )}
+                                {selectedLog.total_price !== null && selectedLog.total_price !== undefined && (
+                                    <div className="flex justify-between border-b pb-2">
+                                        <span className="text-gray-500">Total Price</span>
+                                        <span className="font-bold text-lg text-[#2FA9D9]">₱{selectedLog.total_price.toLocaleString()}</span>
+                                    </div>
+                                )}
                                 <div className="flex justify-between border-b pb-2">
                                     <span className="text-gray-500">Payment Method</span>
                                     <Badge value={selectedLog.payment_method} labels={PAYMENT_LABELS} colors={PAYMENT_COLORS} />
@@ -880,30 +1046,42 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                             <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
                                 <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Staged Items</label>
                                 <div className="space-y-2">
-                                    {stagedLogs.map((log, idx) => (
-                                        <div key={idx} className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl hover:border-[#2FA9D9]/30 transition-all group">
-                                            <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 text-[10px] font-bold">
-                                                #{idx + 1}
-                                            </div>
-                                            <div className="flex-1 min-w-0">
-                                                <div className="flex items-center gap-1.5 capitalize text-xs font-semibold text-gray-800">
-                                                    <span>{log.container_type}</span>
-                                                    <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                                                    <span>{log.water_type}</span>
+                                    {stagedLogs.map((log, idx) => {
+                                        const qty = log.quantity ?? 1;
+                                        const total = log.total_price ?? 0;
+                                        return (
+                                            <div key={idx} className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl hover:border-[#2FA9D9]/30 transition-all group">
+                                                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 text-[10px] font-bold">
+                                                    #{idx + 1}
                                                 </div>
-                                                <div className="text-[10px] text-gray-400 mt-0.5">
-                                                    {log.payment_method} • {log.fulfillment_type}
+                                                <div className="flex-1 min-w-0">
+                                                    <div className="flex items-center gap-1.5 capitalize text-xs font-semibold text-gray-800">
+                                                        <span>{log.container_type}</span>
+                                                        <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                                                        <span>{log.water_type}</span>
+                                                        <span className="w-1 h-1 rounded-full bg-gray-300"></span>
+                                                        <span className="text-gray-500">×{qty}</span>
+                                                    </div>
+                                                    <div className="text-[10px] text-gray-400 mt-0.5">
+                                                        {log.payment_method} • {log.fulfillment_type}
+                                                    </div>
                                                 </div>
+                                                <div className="text-right shrink-0 mr-2">
+                                                    <div className="text-sm font-bold text-[#2FA9D9]">₱{total.toLocaleString()}</div>
+                                                    {log.total_gallons && (
+                                                        <div className="text-[10px] text-gray-400">{log.total_gallons} gal</div>
+                                                    )}
+                                                </div>
+                                                <Button
+                                                    variant="ghost" size="sm"
+                                                    className="h-7 w-7 p-0 text-gray-300 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
+                                                    onClick={() => handleRemoveStagedLog(idx)}
+                                                >
+                                                    <XCircle className="w-4 h-4" />
+                                                </Button>
                                             </div>
-                                            <Button 
-                                                variant="ghost" size="sm" 
-                                                className="h-7 w-7 p-0 text-gray-300 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
-                                                onClick={() => handleRemoveStagedLog(idx)}
-                                            >
-                                                <XCircle className="w-4 h-4" />
-                                            </Button>
-                                        </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}

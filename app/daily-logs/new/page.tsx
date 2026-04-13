@@ -22,6 +22,7 @@ type OrderStatus = "ongoing" | "delivered" | "cancelled";
 
 interface FormData {
     container_type: ContainerType | null;
+    quantity: number;
     water_type: WaterType | null;
     customer_id: string | null;
     customer_name: string;
@@ -30,6 +31,18 @@ interface FormData {
     fulfillment_type: FulfillmentType | null;
     initial_status: OrderStatus;
 }
+
+// ─── Pricing Config ───────────────────────────────────────────────────────────
+
+const CONTAINER_GALLONS: Record<ContainerType, number> = {
+    round: 5,
+    flat:  5,
+};
+
+const WATER_PRICE_PER_GALLON: Record<WaterType, number> = {
+    alkaline: 50,
+    mineral:  35,
+};
 
 // ─── Step Config ──────────────────────────────────────────────────────────────
 
@@ -160,6 +173,7 @@ function MultiStepForm() {
 
     const [formData, setFormData] = useState<FormData>({
         container_type:   null,
+        quantity:         1,
         water_type:       null,
         customer_id:      customerId || null,
         customer_name:    customerName || "",
@@ -173,13 +187,25 @@ function MultiStepForm() {
 
     const canProceed = (): boolean => {
         switch (currentStep) {
-            case 1: return formData.container_type !== null;
+            case 1: return formData.container_type !== null && formData.quantity > 0;
             case 2: return formData.water_type !== null;
             case 3: return formData.payment_method !== null;
             case 4: return formData.fulfillment_type !== null;
             case 5: return true; // always has a default (ongoing)
             default: return false;
         }
+    };
+
+    const calculatePricePerUnit = (): number => {
+        if (!formData.water_type) return 0;
+        return WATER_PRICE_PER_GALLON[formData.water_type];
+    };
+
+    const calculateTotalPrice = (): number => {
+        if (!formData.water_type || !formData.container_type) return 0;
+        const gallons = CONTAINER_GALLONS[formData.container_type];
+        const pricePerGallon = WATER_PRICE_PER_GALLON[formData.water_type];
+        return formData.quantity * gallons * pricePerGallon;
     };
 
     const goNext = () => {
@@ -202,7 +228,11 @@ function MultiStepForm() {
             const newLog = {
                 log_date,
                 container_type:   formData.container_type,
+                quantity:         formData.quantity,
                 water_type:       formData.water_type,
+                price_per_gallon: formData.water_type ? WATER_PRICE_PER_GALLON[formData.water_type] : null,
+                total_gallons:    formData.container_type ? formData.quantity * CONTAINER_GALLONS[formData.container_type] : null,
+                total_price:      calculateTotalPrice(),
                 customer_id:      formData.customer_id,
                 customer_name:    formData.customer_name,
                 customer_address: formData.customer_address,
@@ -327,23 +357,58 @@ function MultiStepForm() {
                         {/* ────── STEP CONTENT ────── */}
                         <div className="min-h-[260px]">
 
-                            {/* Step 1 — Container Type */}
+                            {/* Step 1 — Container Type + Quantity */}
                             {currentStep === 1 && (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <OptionCard
-                                        selected={formData.container_type === "round"}
-                                        onClick={() => setFormData((p) => ({ ...p, container_type: "round" }))}
-                                        icon="🫙"
-                                        label="Round"
-                                        desc="Cylindrical gallon container"
-                                    />
-                                    <OptionCard
-                                        selected={formData.container_type === "flat"}
-                                        onClick={() => setFormData((p) => ({ ...p, container_type: "flat" }))}
-                                        icon="📦"
-                                        label="Flat"
-                                        desc="Flat / rectangular container"
-                                    />
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <OptionCard
+                                            selected={formData.container_type === "round"}
+                                            onClick={() => setFormData((p) => ({ ...p, container_type: "round" }))}
+                                            icon="🫙"
+                                            label="Round"
+                                            desc="Cylindrical gallon container (5 gal)"
+                                        />
+                                        <OptionCard
+                                            selected={formData.container_type === "flat"}
+                                            onClick={() => setFormData((p) => ({ ...p, container_type: "flat" }))}
+                                            icon="📦"
+                                            label="Flat"
+                                            desc="Flat / rectangular container (5 gal)"
+                                        />
+                                    </div>
+                                    {formData.container_type && (
+                                        <div className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                                            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                                                Quantity:
+                                            </label>
+                                            <div className="flex items-center gap-2 flex-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData((p) => ({ ...p, quantity: Math.max(1, p.quantity - 1) }))}
+                                                    className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-semibold"
+                                                >
+                                                    −
+                                                </button>
+                                                <Input
+                                                    type="number"
+                                                    min="1"
+                                                    value={formData.quantity}
+                                                    onChange={(e) => setFormData((p) => ({ ...p, quantity: Math.max(1, parseInt(e.target.value) || 1) }))}
+                                                    className="w-20 text-center font-semibold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData((p) => ({ ...p, quantity: p.quantity + 1 }))}
+                                                    className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-semibold"
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                            <span className="text-xs text-gray-500 whitespace-nowrap">
+                                                {formData.quantity} × {CONTAINER_GALLONS[formData.container_type]} gal
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -471,14 +536,36 @@ function MultiStepForm() {
                                             Order Summary
                                         </p>
                                         <SummaryRow label="Container"   value={formData.container_type   ? CONTAINER_LABELS[formData.container_type]  : "—"} />
-                                        <SummaryRow label="Water Type"  value={formData.water_type        ? WATER_LABELS[formData.water_type]           : "—"} />
-                                        <SummaryRow label="Customer"    value={formData.customer_name     || "—"} />
-                                        {formData.customer_address && (
-                                            <SummaryRow label="Address"  value={formData.customer_address} />
+                                        {formData.container_type && (
+                                            <SummaryRow label="Quantity"   value={`${formData.quantity} container${formData.quantity > 1 ? "s" : ""} × ${CONTAINER_GALLONS[formData.container_type]} gal`} />
                                         )}
-                                        <SummaryRow label="Payment"     value={formData.payment_method    ? PAYMENT_LABELS[formData.payment_method]     : "—"} />
-                                        <SummaryRow label="Fulfillment" value={formData.fulfillment_type  ? FULFILLMENT_LABELS[formData.fulfillment_type] : "—"} />
-                                        <SummaryRow label="Date"        value={format(new Date(), "MMMM d, yyyy")} />
+                                        <SummaryRow label="Water Type"  value={formData.water_type        ? WATER_LABELS[formData.water_type]           : "—"} />
+                                        {formData.water_type && formData.container_type && (
+                                            <SummaryRow label="Price per gallon" value={`₱${WATER_PRICE_PER_GALLON[formData.water_type]}`} />
+                                        )}
+                                        {formData.container_type && (
+                                            <SummaryRow label="Total gallons" value={`${formData.quantity * CONTAINER_GALLONS[formData.container_type]} gal`} />
+                                        )}
+                                        <div className="flex justify-between items-center text-sm py-2 mt-2 pt-2 border-t border-gray-200">
+                                            <span className="font-semibold text-gray-700">Total Price</span>
+                                            <span className="font-bold text-lg text-[#2FA9D9]">
+                                                ₱{calculateTotalPrice().toLocaleString()}
+                                            </span>
+                                        </div>
+                                        {formData.water_type && formData.container_type && (
+                                            <div className="text-xs text-gray-500 text-right mt-1">
+                                                ({formData.quantity} × {CONTAINER_GALLONS[formData.container_type]} gal × ₱{WATER_PRICE_PER_GALLON[formData.water_type]}/gal)
+                                            </div>
+                                        )}
+                                        <div className="border-t border-gray-200 mt-3 pt-3">
+                                            <SummaryRow label="Customer"    value={formData.customer_name     || "—"} />
+                                            {formData.customer_address && (
+                                                <SummaryRow label="Address"  value={formData.customer_address} />
+                                            )}
+                                            <SummaryRow label="Payment"     value={formData.payment_method    ? PAYMENT_LABELS[formData.payment_method]     : "—"} />
+                                            <SummaryRow label="Fulfillment" value={formData.fulfillment_type  ? FULFILLMENT_LABELS[formData.fulfillment_type] : "—"} />
+                                            <SummaryRow label="Date"        value={format(new Date(), "MMMM d, yyyy")} />
+                                        </div>
                                     </div>
                                 </div>
                             )}
