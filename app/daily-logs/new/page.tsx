@@ -1,16 +1,14 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import {
-    ArrowLeft, ArrowRight, Check, MapPin, Search,
-    Package, Droplets, User, CreditCard, Truck, Flag
+    ArrowLeft, ArrowRight, Check,
+    Package, Droplets, CreditCard, Truck, Flag
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { createLog } from "@/app/actions/logs";
-import { getCustomers, createCustomer, type Customer } from "@/app/actions/customers";
 import { format } from "date-fns";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -23,6 +21,7 @@ type OrderStatus = "ongoing" | "delivered" | "cancelled";
 
 interface FormData {
     container_type: ContainerType | null;
+    quantity: number;
     water_type: WaterType | null;
     customer_id: string | null;
     customer_name: string;
@@ -32,15 +31,26 @@ interface FormData {
     initial_status: OrderStatus;
 }
 
+// ─── Pricing Config ───────────────────────────────────────────────────────────
+
+const CONTAINER_GALLONS: Record<ContainerType, number> = {
+    round: 5,
+    flat:  5,
+};
+
+const WATER_PRICE_PER_GALLON: Record<WaterType, number> = {
+    alkaline: 50,
+    mineral:  35,
+};
+
 // ─── Step Config ──────────────────────────────────────────────────────────────
 
 const STEPS = [
     { id: 1, title: "Container Type",  subtitle: "What type of container?",      icon: Package    },
     { id: 2, title: "Water Type",      subtitle: "What type of water?",           icon: Droplets   },
-    { id: 3, title: "Customer",        subtitle: "Who is this order for?",        icon: User       },
-    { id: 4, title: "Payment Method",  subtitle: "How will they pay?",            icon: CreditCard },
-    { id: 5, title: "Fulfillment",     subtitle: "Delivery or pick-up?",          icon: Truck      },
-    { id: 6, title: "Order Status",    subtitle: "Set the initial order status",  icon: Flag       },
+    { id: 3, title: "Payment Method",  subtitle: "How will they pay?",            icon: CreditCard },
+    { id: 4, title: "Fulfillment",     subtitle: "Delivery or pick-up?",          icon: Truck      },
+    { id: 5, title: "Order Status",    subtitle: "Set the initial order status",  icon: Flag       },
 ];
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -112,7 +122,6 @@ function OptionCard({
     icon,
     label,
     desc,
-    accentColor = "#2FA9D9",
     wide = false,
 }: {
     selected: boolean;
@@ -120,7 +129,6 @@ function OptionCard({
     icon: string;
     label: string;
     desc: string;
-    accentColor?: string;
     wide?: boolean;
 }) {
     return (
@@ -153,49 +161,44 @@ function MultiStepForm() {
     const router = useRouter();
     const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
-    const [customers, setCustomers] = useState<Customer[]>([]);
-    const [customerSearch, setCustomerSearch] = useState("");
-    const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
-    const [addingCustomer, setAddingCustomer] = useState(false);
+
+    const searchParams = useSearchParams();
+    const sessionId = searchParams.get("sessionId");
+    const sessionAddress = searchParams.get("address");
+    const customerName = searchParams.get("customerName");
+    const customerId = searchParams.get("customerId");
 
     const [formData, setFormData] = useState<FormData>({
         container_type:   null,
+        quantity:         1,
         water_type:       null,
-        customer_id:      null,
-        customer_name:    "",
-        customer_address: "",
+        customer_id:      customerId || null,
+        customer_name:    customerName || "",
+        customer_address: sessionAddress || "",
         payment_method:   null,
         fulfillment_type: null,
         initial_status:   "ongoing",
     });
 
-    useEffect(() => {
-        setIsLoadingCustomers(true);
-        getCustomers()
-            .then(setCustomers)
-            .catch(console.error)
-            .finally(() => setIsLoadingCustomers(false));
-    }, []);
 
-    const filteredCustomers = customers.filter((c) =>
-        c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-        (c.address ?? "").toLowerCase().includes(customerSearch.toLowerCase())
-    );
-
-    // If the typed search doesn't match any customer, allow adding
-    const noExactMatch = customerSearch.trim() !== "" &&
-        !customers.some((c) => c.name.toLowerCase() === customerSearch.toLowerCase());
 
     const canProceed = (): boolean => {
         switch (currentStep) {
-            case 1: return formData.container_type !== null;
+            case 1: return formData.container_type !== null && formData.quantity > 0;
             case 2: return formData.water_type !== null;
-            case 3: return formData.customer_name !== "";
-            case 4: return formData.payment_method !== null;
-            case 5: return formData.fulfillment_type !== null;
-            case 6: return true; // always has a default (ongoing)
+            case 3: return formData.payment_method !== null;
+            case 4: return formData.fulfillment_type !== null;
+            case 5: return true; // always has a default (ongoing)
             default: return false;
         }
+    };
+
+
+    const calculateTotalPrice = (): number => {
+        if (!formData.water_type || !formData.container_type) return 0;
+        const gallons = CONTAINER_GALLONS[formData.container_type];
+        const pricePerGallon = WATER_PRICE_PER_GALLON[formData.water_type];
+        return formData.quantity * gallons * pricePerGallon;
     };
 
     const goNext = () => {
@@ -207,24 +210,6 @@ function MultiStepForm() {
         setCurrentStep((p) => Math.max(p - 1, 1));
     };
 
-    const handleAddCustomer = async (name: string) => {
-        setAddingCustomer(true);
-        try {
-            const newCustomer = await createCustomer({ name, address: "" });
-            setCustomers((prev) => [...prev, newCustomer].sort((a, b) => a.name.localeCompare(b.name)));
-            setFormData((prev) => ({
-                ...prev,
-                customer_id:      newCustomer.id,
-                customer_name:    newCustomer.name,
-                customer_address: "",
-            }));
-            setCustomerSearch("");
-        } catch (err) {
-            console.error(err);
-        } finally {
-            setAddingCustomer(false);
-        }
-    };
 
     const handleSubmit = async () => {
         if (!canProceed() || isSubmitting) return;
@@ -233,22 +218,40 @@ function MultiStepForm() {
             const today = new Date();
             const log_date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
-            const result = await createLog({
+            const newLog = {
                 log_date,
                 container_type:   formData.container_type,
+                quantity:         formData.quantity,
                 water_type:       formData.water_type,
+                price_per_gallon: formData.water_type ? WATER_PRICE_PER_GALLON[formData.water_type] : null,
+                total_gallons:    formData.container_type ? formData.quantity * CONTAINER_GALLONS[formData.container_type] : null,
+                total_price:      calculateTotalPrice(),
                 customer_id:      formData.customer_id,
                 customer_name:    formData.customer_name,
                 customer_address: formData.customer_address,
                 payment_method:   formData.payment_method,
                 fulfillment_type: formData.fulfillment_type,
                 status:           formData.initial_status,
-            });
+                session_id:       sessionId,
+                session_address:  sessionAddress,
+            };
 
-            if (result.success) {
-                router.push("/daily-logs");
-                router.refresh();
-            }
+            // Stage in sessionStorage
+            const staged = JSON.parse(sessionStorage.getItem("staged_session_logs") || "[]");
+            staged.push(newLog);
+            sessionStorage.setItem("staged_session_logs", JSON.stringify(staged));
+
+            // Redirect back with all session info to keep modal open
+            const params = new URLSearchParams({
+                sessionOpen: "true",
+                sessionId: sessionId || "",
+                address: sessionAddress || "",
+                customerName: customerName || "",
+                customerId: customerId || ""
+            });
+            
+            router.push(`/daily-logs?${params.toString()}`);
+            router.refresh();
         } catch (err) {
             console.error(err);
         } finally {
@@ -347,23 +350,58 @@ function MultiStepForm() {
                         {/* ────── STEP CONTENT ────── */}
                         <div className="min-h-[260px]">
 
-                            {/* Step 1 — Container Type */}
+                            {/* Step 1 — Container Type + Quantity */}
                             {currentStep === 1 && (
-                                <div className="grid grid-cols-2 gap-4">
-                                    <OptionCard
-                                        selected={formData.container_type === "round"}
-                                        onClick={() => setFormData((p) => ({ ...p, container_type: "round" }))}
-                                        icon="🫙"
-                                        label="Round"
-                                        desc="Cylindrical gallon container"
-                                    />
-                                    <OptionCard
-                                        selected={formData.container_type === "flat"}
-                                        onClick={() => setFormData((p) => ({ ...p, container_type: "flat" }))}
-                                        icon="📦"
-                                        label="Flat"
-                                        desc="Flat / rectangular container"
-                                    />
+                                <div className="space-y-4">
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <OptionCard
+                                            selected={formData.container_type === "round"}
+                                            onClick={() => setFormData((p) => ({ ...p, container_type: "round" }))}
+                                            icon="🫙"
+                                            label="Round"
+                                            desc="Cylindrical gallon container (5 gal)"
+                                        />
+                                        <OptionCard
+                                            selected={formData.container_type === "flat"}
+                                            onClick={() => setFormData((p) => ({ ...p, container_type: "flat" }))}
+                                            icon="📦"
+                                            label="Flat"
+                                            desc="Flat / rectangular container (5 gal)"
+                                        />
+                                    </div>
+                                    {formData.container_type && (
+                                        <div className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100">
+                                            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
+                                                Quantity:
+                                            </label>
+                                            <div className="flex items-center gap-2 flex-1">
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData((p) => ({ ...p, quantity: Math.max(1, p.quantity - 1) }))}
+                                                    className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-semibold"
+                                                >
+                                                    −
+                                                </button>
+                                                <Input
+                                                    type="number"
+                                                    min="1"
+                                                    value={formData.quantity}
+                                                    onChange={(e) => setFormData((p) => ({ ...p, quantity: Math.max(1, parseInt(e.target.value) || 1) }))}
+                                                    className="w-20 text-center font-semibold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                />
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setFormData((p) => ({ ...p, quantity: p.quantity + 1 }))}
+                                                    className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-semibold"
+                                                >
+                                                    +
+                                                </button>
+                                            </div>
+                                            <span className="text-xs text-gray-500 whitespace-nowrap">
+                                                {formData.quantity} × {CONTAINER_GALLONS[formData.container_type]} gal
+                                            </span>
+                                        </div>
+                                    )}
                                 </div>
                             )}
 
@@ -387,110 +425,8 @@ function MultiStepForm() {
                                 </div>
                             )}
 
-                            {/* Step 3 — Customer */}
+                            {/* Step 3 — Payment Method */}
                             {currentStep === 3 && (
-                                <div className="space-y-3">
-                                    {/* Selected badge */}
-                                    {formData.customer_name && (
-                                        <div className="flex items-center gap-2 p-2.5 rounded-xl bg-[#2FA9D9]/8 border border-[#2FA9D9]/20">
-                                            <div className="w-6 h-6 rounded-full bg-[#2FA9D9] flex items-center justify-center shrink-0">
-                                                <Check className="w-3.5 h-3.5 text-white stroke-[3]" />
-                                            </div>
-                                            <div className="min-w-0">
-                                                <div className="text-sm font-semibold text-[#2FA9D9] truncate">{formData.customer_name}</div>
-                                                {formData.customer_address && (
-                                                    <div className="text-xs text-gray-500 truncate">{formData.customer_address}</div>
-                                                )}
-                                            </div>
-                                            <button
-                                                className="ml-auto text-xs text-gray-400 hover:text-gray-600 shrink-0"
-                                                onClick={() => setFormData((p) => ({ ...p, customer_id: null, customer_name: "", customer_address: "" }))}
-                                            >
-                                                Change
-                                            </button>
-                                        </div>
-                                    )}
-
-                                    {/* Search */}
-                                    <div className="relative">
-                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                        <Input
-                                            placeholder="Search customers by name or address…"
-                                            className="pl-9 text-sm"
-                                            value={customerSearch}
-                                            onChange={(e) => setCustomerSearch(e.target.value)}
-                                        />
-                                    </div>
-
-                                    {/* Customer list */}
-                                    <div className="max-h-[200px] overflow-y-auto space-y-1.5 pr-0.5 -mr-1">
-                                        {isLoadingCustomers && (
-                                            <div className="text-center py-8 text-sm text-gray-400">Loading customers…</div>
-                                        )}
-
-                                        {/* Add new option */}
-                                        {noExactMatch && !isLoadingCustomers && (
-                                            <button
-                                                onClick={() => handleAddCustomer(customerSearch.trim())}
-                                                disabled={addingCustomer}
-                                                className="w-full p-3 rounded-xl border-2 border-dashed border-gray-300 text-sm text-gray-500 hover:border-[#2FA9D9] hover:text-[#2FA9D9] hover:bg-[#2FA9D9]/4 transition-all"
-                                            >
-                                                {addingCustomer ? "Adding…" : `＋ Add "${customerSearch.trim()}" as new customer`}
-                                            </button>
-                                        )}
-
-                                        {filteredCustomers.map((customer) => (
-                                            <button
-                                                key={customer.id}
-                                                onClick={() => {
-                                                    setFormData((p) => ({
-                                                        ...p,
-                                                        customer_id:      customer.id,
-                                                        customer_name:    customer.name,
-                                                        customer_address: customer.address ?? "",
-                                                    }));
-                                                    setCustomerSearch("");
-                                                }}
-                                                className={`
-                                                    w-full p-3 rounded-xl border-2 text-left transition-all duration-150
-                                                    ${formData.customer_id === customer.id
-                                                        ? "border-[#2FA9D9] bg-[#2FA9D9]/6"
-                                                        : "border-gray-100 hover:border-[#2FA9D9]/40 hover:bg-gray-50"
-                                                    }
-                                                `}
-                                            >
-                                                <div className="flex items-center justify-between gap-2">
-                                                    <div className="min-w-0">
-                                                        <div className={`font-medium text-sm truncate ${formData.customer_id === customer.id ? "text-[#2FA9D9]" : "text-gray-900"}`}>
-                                                            {customer.name}
-                                                        </div>
-                                                        {customer.address && (
-                                                            <div className="text-xs text-gray-400 flex items-center gap-1 mt-0.5 truncate">
-                                                                <MapPin className="w-3 h-3 shrink-0" />
-                                                                {customer.address}
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                    {formData.customer_id === customer.id && (
-                                                        <div className="w-5 h-5 rounded-full bg-[#2FA9D9] flex items-center justify-center shrink-0">
-                                                            <Check className="w-3 h-3 text-white stroke-[3]" />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </button>
-                                        ))}
-
-                                        {!isLoadingCustomers && filteredCustomers.length === 0 && !noExactMatch && (
-                                            <div className="text-center py-8 text-sm text-gray-400">
-                                                No customers found. Type a name to add one.
-                                            </div>
-                                        )}
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Step 4 — Payment Method */}
-                            {currentStep === 4 && (
                                 <div className="grid grid-cols-2 gap-3">
                                     <OptionCard
                                         selected={formData.payment_method === "gcash"}
@@ -523,8 +459,8 @@ function MultiStepForm() {
                                 </div>
                             )}
 
-                            {/* Step 5 — Fulfillment */}
-                            {currentStep === 5 && (
+                            {/* Step 4 — Fulfillment */}
+                            {currentStep === 4 && (
                                 <div className="grid grid-cols-2 gap-4">
                                     <OptionCard
                                         selected={formData.fulfillment_type === "delivery"}
@@ -543,8 +479,8 @@ function MultiStepForm() {
                                 </div>
                             )}
 
-                            {/* Step 6 — Order Status + Summary */}
-                            {currentStep === 6 && (
+                            {/* Step 5 — Order Status + Summary */}
+                            {currentStep === 5 && (
                                 <div className="space-y-5">
                                     {/* Status options */}
                                     <div className="flex flex-col gap-3">
@@ -593,14 +529,36 @@ function MultiStepForm() {
                                             Order Summary
                                         </p>
                                         <SummaryRow label="Container"   value={formData.container_type   ? CONTAINER_LABELS[formData.container_type]  : "—"} />
-                                        <SummaryRow label="Water Type"  value={formData.water_type        ? WATER_LABELS[formData.water_type]           : "—"} />
-                                        <SummaryRow label="Customer"    value={formData.customer_name     || "—"} />
-                                        {formData.customer_address && (
-                                            <SummaryRow label="Address"  value={formData.customer_address} />
+                                        {formData.container_type && (
+                                            <SummaryRow label="Quantity"   value={`${formData.quantity} container${formData.quantity > 1 ? "s" : ""} × ${CONTAINER_GALLONS[formData.container_type]} gal`} />
                                         )}
-                                        <SummaryRow label="Payment"     value={formData.payment_method    ? PAYMENT_LABELS[formData.payment_method]     : "—"} />
-                                        <SummaryRow label="Fulfillment" value={formData.fulfillment_type  ? FULFILLMENT_LABELS[formData.fulfillment_type] : "—"} />
-                                        <SummaryRow label="Date"        value={format(new Date(), "MMMM d, yyyy")} />
+                                        <SummaryRow label="Water Type"  value={formData.water_type        ? WATER_LABELS[formData.water_type]           : "—"} />
+                                        {formData.water_type && formData.container_type && (
+                                            <SummaryRow label="Price per gallon" value={`₱${WATER_PRICE_PER_GALLON[formData.water_type]}`} />
+                                        )}
+                                        {formData.container_type && (
+                                            <SummaryRow label="Total gallons" value={`${formData.quantity * CONTAINER_GALLONS[formData.container_type]} gal`} />
+                                        )}
+                                        <div className="flex justify-between items-center text-sm py-2 mt-2 pt-2 border-t border-gray-200">
+                                            <span className="font-semibold text-gray-700">Total Price</span>
+                                            <span className="font-bold text-lg text-[#2FA9D9]">
+                                                ₱{calculateTotalPrice().toLocaleString()}
+                                            </span>
+                                        </div>
+                                        {formData.water_type && formData.container_type && (
+                                            <div className="text-xs text-gray-500 text-right mt-1">
+                                                ({formData.quantity} × {CONTAINER_GALLONS[formData.container_type]} gal × ₱{WATER_PRICE_PER_GALLON[formData.water_type]}/gal)
+                                            </div>
+                                        )}
+                                        <div className="border-t border-gray-200 mt-3 pt-3">
+                                            <SummaryRow label="Customer"    value={formData.customer_name     || "—"} />
+                                            {formData.customer_address && (
+                                                <SummaryRow label="Address"  value={formData.customer_address} />
+                                            )}
+                                            <SummaryRow label="Payment"     value={formData.payment_method    ? PAYMENT_LABELS[formData.payment_method]     : "—"} />
+                                            <SummaryRow label="Fulfillment" value={formData.fulfillment_type  ? FULFILLMENT_LABELS[formData.fulfillment_type] : "—"} />
+                                            <SummaryRow label="Date"        value={format(new Date(), "MMMM d, yyyy")} />
+                                        </div>
                                     </div>
                                 </div>
                             )}

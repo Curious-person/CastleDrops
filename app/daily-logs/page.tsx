@@ -3,19 +3,6 @@ import { Suspense } from "react";
 import NavigationBar from "@/components/NavigationBar";
 import DailyLogsClient from "./DailyLogsClient";
 
-type Log = {
-    id: number;
-    created_at: string;
-    log_date: string;
-    container_type: string;
-    water_type: string;
-    customer_id: string | null;
-    customer_name: string;
-    customer_address: string;
-    payment_method: string;
-    fulfillment_type: string;
-    status: "ongoing" | "delivered" | "cancelled" | null;
-};
 
 async function fetchDailyLogs(query?: string, sort?: string) {
     const supabase = createClient(

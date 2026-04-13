@@ -1,4 +1,5 @@
 'use client';
+import Image from "next/image";
 import { ArrowRightFromLine } from "lucide-react";
 import { Button } from "./ui/button";
 
@@ -9,7 +10,14 @@ interface NavigationBarProps {
 export default function NavigationBar({ className }: NavigationBarProps) {
     return (
         <div className={`w-full flex justify-between py-4 px-6 bg-white print:hidden ${className}`}>
-            <img src="/images/logo.png" alt="Castle Drops Logo" className="w-16 h-auto" />
+            <Image 
+                src="/images/logo.png" 
+                alt="Castle Drops Logo" 
+                width={64} 
+                height={64} 
+                className="w-16 h-auto"
+                priority
+            />
             <Button
                 onClick={() => window.print()}
             >
