@@ -5,7 +5,7 @@ import { useDebouncedCallback } from "use-debounce";
 import {
     PhilippinePeso, Plus, Search, Trash, Eye,
     CheckCircle2, XCircle, RotateCcw, Clock, PackageCheck, Package,
-    Edit, MapPin
+    Edit, MapPin, Printer
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -19,7 +19,8 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { deleteLog, updateLogStatus, deleteSession, updateSession, createLogsBulk } from "@/app/actions/logs";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { deleteLog, updateLogStatus, deleteSession, updateSession, createLogsBulk, updateSessionStatus } from "@/app/actions/logs";
 import { getCustomers, type Customer } from "@/app/actions/customers";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -43,15 +44,18 @@ type DailyLog = {
     status: OrderStatus | null;
     session_id: string | null;
     session_address: string | null;
+    session_status?: string | null;
 };
 
 type SessionGroup = {
     sessionId: string;
     address: string;
     date: string;
+    status: string;
     logs: DailyLog[];
     onDelete: (id: string) => void;
     onEdit: (id: string, address: string) => void;
+    onStatusChange: (id: string, status: string) => void;
 };
 
 type NewLog = Omit<DailyLog, "id">;
@@ -59,19 +63,19 @@ type NewLog = Omit<DailyLog, "id">;
 // ─── Label / color maps ───────────────────────────────────────────────────────
 
 const CONTAINER_LABELS: Record<string, string> = { round: "Round", flat: "Flat" };
-const WATER_LABELS:     Record<string, string> = { alkaline: "Alkaline", mineral: "Mineral" };
-const PAYMENT_LABELS:   Record<string, string> = {
+const WATER_LABELS: Record<string, string> = { alkaline: "Alkaline", mineral: "Mineral" };
+const PAYMENT_LABELS: Record<string, string> = {
     gcash: "GCash", cash: "Cash", bank_transfer: "Bank Transfer", credit: "Credit / Card",
 };
 const FULFILLMENT_LABELS: Record<string, string> = {
     delivery: "🚚 Delivery", pickup: "🏪 Pick-up",
 };
 
-const PAYMENT_COLORS:   Record<string, string> = {
+const PAYMENT_COLORS: Record<string, string> = {
     gcash: "bg-blue-100 text-blue-700", cash: "bg-green-100 text-green-700",
     bank_transfer: "bg-purple-100 text-purple-700", credit: "bg-amber-100 text-amber-700",
 };
-const WATER_COLORS:     Record<string, string> = {
+const WATER_COLORS: Record<string, string> = {
     alkaline: "bg-sky-100 text-sky-700", mineral: "bg-emerald-100 text-emerald-700",
 };
 const CONTAINER_COLORS: Record<string, string> = {
@@ -177,9 +181,17 @@ function TallyModal({ open, onClose, logs }: { open: boolean; onClose: () => voi
                 count: 0,
             };
         }
-        tallyMap[key].quantity += log.quantity ?? 0;
-        tallyMap[key].totalGallons += log.total_gallons ?? 0;
-        tallyMap[key].totalPrice += log.total_price ?? 0;
+        const wType = log.water_type || "mineral";
+        const cType = log.container_type || "round";
+        const quantity = log.quantity ?? 1;
+        const gal = cType === "round" || cType === "flat" ? 5 : 5;
+        const pricePerGal = wType === "alkaline" ? 50 : 35;
+        const calcPrice = (quantity) * gal * pricePerGal;
+        const calcGallons = (quantity) * gal;
+
+        tallyMap[key].quantity += quantity;
+        tallyMap[key].totalGallons += log.total_gallons ?? calcGallons;
+        tallyMap[key].totalPrice += log.total_price ?? calcPrice;
         tallyMap[key].count += 1;
     });
 
@@ -251,142 +263,6 @@ function TallyModal({ open, onClose, logs }: { open: boolean; onClose: () => voi
     );
 }
 
-function SessionCard({ group, ongoingCols, deliveredCols, cancelledCols }: {
-    group: SessionGroup,
-    ongoingCols: Column<DailyLog>[],
-    deliveredCols: Column<DailyLog>[],
-    cancelledCols: Column<DailyLog>[]
-}) {
-    const [isExpanded, setIsExpanded] = useState(false);
-    const [showTally, setShowTally] = useState(false);
-
-    const ongoing = group.logs.filter((l: DailyLog) => !l.status || l.status === "ongoing");
-    const delivered = group.logs.filter((l: DailyLog) => l.status === "delivered");
-    const cancelled = group.logs.filter((l: DailyLog) => l.status === "cancelled");
-
-    const handleGenerateTally = (e: React.MouseEvent) => {
-        e.stopPropagation();
-        setShowTally(true);
-    };
-
-    return (
-        <div className="border border-gray-100 rounded-xl mb-4 overflow-hidden shadow-sm bg-white hover:border-[#2FA9D9]/30 transition-all">
-            <div 
-                className="p-4 flex flex-col sm:flex-row sm:items-center justify-between cursor-pointer hover:bg-gray-50 bg-white"
-                onClick={() => setIsExpanded(!isExpanded)}
-            >
-                <div className="flex items-start gap-4">
-                    <div className="w-10 h-10 rounded-full bg-[#2FA9D9]/10 flex items-center justify-center shrink-0">
-                        <Package className="w-5 h-5 text-[#2FA9D9]" />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-[#2FA9D9]">{group.sessionId}</span>
-                            <span className="text-xs text-gray-400 font-medium">{format(new Date(group.date), "MMM d, yyyy")}</span>
-                        </div>
-                        <div className="flex items-center gap-1.5 text-sm text-gray-600 mt-0.5">
-                            <div className="flex items-center gap-1">
-                                <span className="font-semibold text-gray-900">{group.logs.length}</span>
-                                <span className="text-gray-400">orders in this session</span>
-                            </div>
-                            <span className="text-gray-300 mx-1.5 inline-block h-3 w-[1px] bg-gray-200"></span>
-                            <span className="truncate max-w-[300px] text-gray-500">{group.address}</span>
-                        </div>
-                    </div>
-                </div>
-                <div className="mt-3 sm:mt-0 flex items-center gap-2">
-                    <Button
-                        variant="ghost" size="sm"
-                        onClick={handleGenerateTally}
-                        className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
-                        title="Generate Tally"
-                    >
-                        <PackageCheck className="w-4 h-4" />
-                    </Button>
-                    <Button
-                        variant="ghost" size="sm"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            group.onEdit(group.sessionId, group.address);
-                        }}
-                        className="text-gray-500 hover:text-[#2FA9D9] hover:bg-[#2FA9D9]/5"
-                        title="Edit Session Address"
-                    >
-                        <Edit className="w-4 h-4" />
-                    </Button>
-                    <Button
-                        variant="ghost" size="sm"
-                        onClick={(e) => {
-                            e.stopPropagation();
-                            group.onDelete(group.sessionId);
-                        }}
-                        className="text-rose-500 hover:text-rose-600 hover:bg-rose-50"
-                        title="Delete Session"
-                    >
-                        <Trash className="w-4 h-4" />
-                    </Button>
-                    <Button variant="ghost" size="sm" className="hidden sm:inline-flex text-[#2FA9D9]">
-                        {isExpanded ? "Hide Details" : "Manage Session"}
-                        {isExpanded ? <RotateCcw className="w-3.5 h-3.5 ml-1.5 rotate-45" /> : <Eye className="w-3.5 h-3.5 ml-1.5" />}
-                    </Button>
-                </div>
-            </div>
-            
-            {isExpanded && (
-                <div className="border-t border-gray-50 bg-gray-50/10">
-                    <Tabs defaultValue="ongoing" className="w-full">
-                        <div className="px-4 border-b border-gray-100 bg-white">
-                            <TabsList className="bg-transparent p-0 gap-0 h-auto border-0">
-                                <TabsTrigger value="ongoing" className="relative pb-2 px-3 rounded-none text-xs data-[state=active]:text-[#2FA9D9] data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-transparent data-[state=active]:after:bg-[#2FA9D9]">
-                                    Ongoing ({ongoing.length})
-                                </TabsTrigger>
-                                <TabsTrigger value="delivered" className="relative pb-2 px-3 rounded-none text-xs data-[state=active]:text-emerald-600 data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-transparent data-[state=active]:after:bg-emerald-500">
-                                    Delivered ({delivered.length})
-                                </TabsTrigger>
-                                <TabsTrigger value="cancelled" className="relative pb-2 px-3 rounded-none text-xs data-[state=active]:text-rose-600 data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-transparent data-[state=active]:after:bg-rose-500">
-                                    Cancelled ({cancelled.length})
-                                </TabsTrigger>
-                            </TabsList>
-                        </div>
-
-                        <TabsContent value="ongoing" className="m-0 p-2 sm:p-4">
-                            {ongoing.length === 0 ? (
-                                <div className="py-8 text-center text-gray-400 text-xs">No ongoing orders in this session</div>
-                            ) : (
-                                <div className="overflow-x-auto rounded-lg border border-gray-100 bg-white">
-                                    <DataTable columns={ongoingCols} data={ongoing} />
-                                </div>
-                            )}
-                        </TabsContent>
-
-                        <TabsContent value="delivered" className="m-0 p-2 sm:p-4">
-                            {delivered.length === 0 ? (
-                                <div className="py-8 text-center text-gray-400 text-xs">No delivered orders in this session</div>
-                            ) : (
-                                <div className="overflow-x-auto rounded-lg border border-gray-100 bg-white">
-                                    <DataTable columns={deliveredCols} data={delivered} />
-                                </div>
-                            )}
-                        </TabsContent>
-
-                        <TabsContent value="cancelled" className="m-0 p-2 sm:p-4">
-                            {cancelled.length === 0 ? (
-                                <div className="py-8 text-center text-gray-400 text-xs">No cancelled orders in this session</div>
-                            ) : (
-                                <div className="overflow-x-auto rounded-lg border border-gray-100 bg-white">
-                                    <DataTable columns={cancelledCols} data={cancelled} />
-                                </div>
-                            )}
-                        </TabsContent>
-                    </Tabs>
-                </div>
-            )}
-
-            {/* Tally Modal */}
-            <TallyModal open={showTally} onClose={() => setShowTally(false)} logs={group.logs} />
-        </div>
-    );
-}
 
 // ─── Shared column builders ───────────────────────────────────────────────────
 
@@ -476,27 +352,33 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
     const searchParams = useSearchParams();
 
     // Modals
-    const [isViewModalOpen,   setIsViewModalOpen]   = useState(false);
+    const [isViewModalOpen, setIsViewModalOpen] = useState(false);
     const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
     const [isStatusModalOpen, setIsStatusModalOpen] = useState(false);
-    const [isDeleting,        setIsDeleting]        = useState(false);
-    const [isUpdatingStatus,  setIsUpdatingStatus]  = useState(false);
+    const [isDeleting, setIsDeleting] = useState(false);
+    const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
     const [isDeleteSessionModalOpen, setIsDeleteSessionModalOpen] = useState(false);
-    const [isEditSessionModalOpen,   setIsEditSessionModalOpen]   = useState(false);
-    const [selectedLog,       setSelectedLog]       = useState<DailyLog | null>(null);
+    const [isEditSessionModalOpen, setIsEditSessionModalOpen] = useState(false);
+    const [selectedLog, setSelectedLog] = useState<DailyLog | null>(null);
     const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
     const [editSessionAddress, setEditSessionAddress] = useState("");
-    const [pendingStatus,     setPendingStatus]     = useState<OrderStatus | null>(null);
+    const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null);
+    const [selectedSessionForDetails, setSelectedSessionForDetails] = useState<SessionGroup | null>(null);
+    const [isSessionDetailsModalOpen, setIsSessionDetailsModalOpen] = useState(false);
+    const [selectedSessionForTally, setSelectedSessionForTally] = useState<SessionGroup | null>(null);
+    const [isTallyModalOpen, setIsTallyModalOpen] = useState(false);
 
     // Session State
     const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
     const [stagedLogs, setStagedLogs] = useState<NewLog[]>([]);
     const [isSavingSession, setIsSavingSession] = useState(false);
+    const [statTab, setStatTab] = useState("today");
+    const [sessionListTab, setSessionListTab] = useState("ongoing");
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
     const [customerSearch, setCustomerSearch] = useState("");
-    const [sessionData, setSessionData] = useState({ 
-        id: "", 
+    const [sessionData, setSessionData] = useState({
+        id: "",
         address: "",
         customerName: "",
         customerId: ""
@@ -510,16 +392,16 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
             const addr = searchParams.get("address") || "";
             const name = searchParams.get("customerName") || "";
             const cId = searchParams.get("customerId") || "";
-            
+
             setSessionData({ id, address: addr, customerName: name, customerId: cId });
             setIsSessionModalOpen(true);
-            
+
             // Clear URL params without reloading to keep UI clean
             const url = new URL(window.location.href);
             url.searchParams.delete("sessionOpen");
             window.history.replaceState({}, "", url);
         }
-        
+
         // Load staged logs from storage
         const staged = JSON.parse(sessionStorage.getItem("staged_session_logs") || "[]");
         setStagedLogs(staged);
@@ -552,8 +434,8 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
             return;
         }
 
-        setSessionData({ 
-            id: generateSessionId(), 
+        setSessionData({
+            id: generateSessionId(),
             address: "",
             customerName: "",
             customerId: ""
@@ -669,12 +551,21 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
         finally { setIsUpdatingStatus(false); }
     };
 
+    const handleSessionStatusChange = async (sessionId: string, status: string) => {
+        setIsUpdatingStatus(true);
+        try {
+            const result = await updateSessionStatus(sessionId, status);
+            if (result.success) { router.refresh(); }
+        } catch (err) { console.error(err); }
+        finally { setIsUpdatingStatus(false); }
+    };
+
     // ── Grouping Logic ───────────────────────────────────────────────────────
-    
+
 
     const groupLogsBySession = (logs: DailyLog[]): SessionGroup[] => {
         const groups: Record<string, SessionGroup> = {};
-        
+
         logs.forEach(log => {
             const sid = log.session_id || `LEGACY-${log.id}`;
             if (!groups[sid]) {
@@ -682,14 +573,16 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                     sessionId: sid,
                     address: log.session_address || log.customer_address || "No Address",
                     date: log.log_date,
+                    status: log.session_status || "ongoing", // Default to first log's status or ongoing
                     logs: [],
                     onDelete: handleOpenDeleteSession,
-                    onEdit: handleOpenEditSession
+                    onEdit: handleOpenEditSession,
+                    onStatusChange: handleSessionStatusChange
                 };
             }
             groups[sid].logs.push(log);
         });
-        
+
         return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
     };
 
@@ -809,6 +702,41 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
 
     // ─────────────────────────────────────────────────────────────────────────
 
+    // Calculate Dashboard Statistics dynamically
+    const now = new Date();
+    const filteredStatsLogs = initialData.filter((log) => {
+        if (log.status === "cancelled") return false;
+        
+        const logDate = new Date(log.log_date);
+        
+        if (statTab === "today") {
+            return logDate.toDateString() === now.toDateString();
+        } else if (statTab === "week") {
+            const weekAgo = new Date(now);
+            weekAgo.setDate(now.getDate() - 7);
+            return logDate >= weekAgo;
+        } else if (statTab === "month") {
+            return logDate.getMonth() === now.getMonth() && logDate.getFullYear() === now.getFullYear();
+        } else if (statTab === "year") {
+            return logDate.getFullYear() === now.getFullYear();
+        }
+        return true;
+    });
+
+    const calculateLogPrice = (log: DailyLog) => {
+        if (log.total_price) return log.total_price;
+        // Fallback calculation for older logs
+        const quantity = log.quantity ?? 1;
+        const wType = log.water_type || "mineral";
+        const cType = log.container_type || "round";
+        const gal = cType === "round" || cType === "flat" ? 5 : 5;
+        const pricePerGal = wType === "alkaline" ? 50 : 35;
+        return (quantity) * gal * pricePerGal; // Note: water_quantity fallback is assumed 1 here
+    };
+
+    const totalRevenue = filteredStatsLogs.reduce((sum, log) => sum + calculateLogPrice(log), 0);
+    const totalOrders = filteredStatsLogs.length;
+
     return (
         <>
             <div className="p-4 sm:p-6 lg:p-8 print:hidden">
@@ -816,7 +744,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                 {/* ── Stat Cards ── */}
                 <div className="mb-4">
                     <div className="p-4 sm:p-6 rounded-xl bg-white w-full">
-                        <Tabs defaultValue="today" className="w-full">
+                        <Tabs defaultValue="today" value={statTab} onValueChange={setStatTab} className="w-full">
                             <TabsList className="w-full sm:w-auto grid grid-cols-4">
                                 <TabsTrigger value="today">Today</TabsTrigger>
                                 <TabsTrigger value="week">Week</TabsTrigger>
@@ -824,8 +752,8 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                                 <TabsTrigger value="year">Year</TabsTrigger>
                             </TabsList>
                             <div className="flex flex-col sm:flex-row gap-4 mt-4">
-                                <StatCard title="Total Revenue" value="₱16,050.89" change="+20.1%" positive={true} icon={PhilippinePeso} />
-                                <StatCard title="Total Orders" value={String(initialData.length)} change="+5" positive={true} icon={PhilippinePeso} />
+                                <StatCard title="Total Revenue" value={`₱${totalRevenue.toLocaleString()}`} change="Active" positive={true} icon={PhilippinePeso} />
+                                <StatCard title="Total Orders" value={String(totalOrders)} change="Active" positive={true} icon={Package} />
                             </div>
                         </Tabs>
                     </div>
@@ -869,22 +797,132 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
 
                     {/* All Sessions List */}
                     <div className="p-4 sm:p-6">
-                        {allSessions.length === 0 ? (
+                        <Tabs value={sessionListTab} onValueChange={setSessionListTab} className="w-full mb-4">
+                            <TabsList className="grid grid-cols-3 w-full sm:w-[400px]">
+                                <TabsTrigger value="ongoing">Ongoing ({allSessions.filter(g => g.status === 'ongoing').length})</TabsTrigger>
+                                <TabsTrigger value="completed">Completed ({allSessions.filter(g => g.status === 'completed').length})</TabsTrigger>
+                                <TabsTrigger value="cancelled">Cancelled ({allSessions.filter(g => g.status === 'cancelled').length})</TabsTrigger>
+                            </TabsList>
+                        </Tabs>
+
+                        {allSessions.filter(group => group.status === sessionListTab).length === 0 ? (
                             <div className="py-20 text-center">
                                 <Clock className="w-12 h-12 text-gray-200 mx-auto mb-4" />
                                 <h3 className="text-gray-500 font-medium">No sessions found</h3>
                                 <p className="text-gray-400 text-sm mt-1">Start a new session to begin logging orders.</p>
                             </div>
                         ) : (
-                            allSessions.map(group => (
-                                <SessionCard 
-                                    key={group.sessionId} 
-                                    group={group} 
-                                    ongoingCols={ongoingColumns}
-                                    deliveredCols={deliveredColumns}
-                                    cancelledCols={cancelledColumns}
-                                />
-                            ))
+                            <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
+                                <Table>
+                                    <TableHeader className="bg-gray-50/50">
+                                        <TableRow>
+                                            <TableHead className="py-3">Session Info</TableHead>
+                                            <TableHead className="py-3">Date</TableHead>
+                                            <TableHead className="py-3">Orders</TableHead>
+                                            <TableHead className="py-3">Status</TableHead>
+                                            <TableHead className="py-3 text-right">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {allSessions.filter(group => group.status === sessionListTab).map((group) => (
+                                            <TableRow
+                                                key={group.sessionId}
+                                                className="cursor-pointer hover:bg-gray-50/50 transition-colors"
+                                                onClick={() => {
+                                                    setSelectedSessionForDetails(group);
+                                                    setIsSessionDetailsModalOpen(true);
+                                                }}
+                                            >
+                                                <TableCell className="py-4">
+                                                    <div className="flex items-start gap-4">
+                                                        <div className="w-10 h-10 rounded-full bg-[#2FA9D9]/10 flex items-center justify-center shrink-0 mt-0.5">
+                                                            <Package className="w-5 h-5 text-[#2FA9D9]" />
+                                                        </div>
+                                                        <div>
+                                                            <div className="flex items-center gap-2">
+                                                                <span className="font-bold text-sm text-[#2FA9D9]">{group.sessionId}</span>
+                                                            </div>
+                                                            <div className="text-sm text-gray-500 max-w-[300px] truncate mt-1 flex items-center gap-1.5">
+                                                                <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                                                                {group.address}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="py-4 align-middle">
+                                                    <div className="flex flex-col">
+                                                        <span className="font-medium text-sm text-gray-900">{format(new Date(group.date), "MMM d, yyyy")}</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="py-4 align-middle">
+                                                    <div className="inline-flex flex-col">
+                                                        <span className="font-bold text-gray-900 text-lg leading-tight">{group.logs.length}</span>
+                                                        <span className="text-xs text-gray-400 font-medium">orders</span>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="py-4 align-middle">
+                                                    <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                                                        <Select
+                                                            value={group.status}
+                                                            onValueChange={(val) => group.onStatusChange(group.sessionId, val)}
+                                                        >
+                                                            <SelectTrigger className="w-[130px] h-8 text-xs font-medium bg-gray-50 border-gray-200">
+                                                                <SelectValue placeholder="Status" />
+                                                            </SelectTrigger>
+                                                            <SelectContent>
+                                                                <SelectItem value="ongoing" className="text-xs">⏳ Ongoing</SelectItem>
+                                                                <SelectItem value="completed" className="text-xs">✅ Completed</SelectItem>
+                                                                <SelectItem value="cancelled" className="text-xs">❌ Cancelled</SelectItem>
+                                                            </SelectContent>
+                                                        </Select>
+                                                    </div>
+                                                </TableCell>
+                                                <TableCell className="py-4 align-middle text-right">
+                                                    <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                                                        <Button
+                                                            variant="ghost" size="icon"
+                                                            onClick={() => {
+                                                                setSelectedSessionForTally(group);
+                                                                setIsTallyModalOpen(true);
+                                                            }}
+                                                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8 w-8"
+                                                            title="Generate Tally"
+                                                        >
+                                                            <PackageCheck className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost" size="icon"
+                                                            onClick={() => group.onEdit(group.sessionId, group.address)}
+                                                            className="text-gray-500 hover:text-[#2FA9D9] hover:bg-[#2FA9D9]/5 h-8 w-8"
+                                                            title="Edit Session Address"
+                                                        >
+                                                            <Edit className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost" size="icon"
+                                                            onClick={() => group.onDelete(group.sessionId)}
+                                                            className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 h-8 w-8"
+                                                            title="Delete Session"
+                                                        >
+                                                            <Trash className="w-4 h-4" />
+                                                        </Button>
+                                                        <Button
+                                                            variant="ghost" size="sm"
+                                                            className="text-[#2FA9D9] hover:text-[#2195c0] hover:bg-[#2FA9D9]/10 ml-2 hidden sm:inline-flex font-medium"
+                                                            onClick={() => {
+                                                                setSelectedSessionForDetails(group);
+                                                                setIsSessionDetailsModalOpen(true);
+                                                            }}
+                                                        >
+                                                            View Details
+                                                        </Button>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        ))}
+                                    </TableBody>
+                                </Table>
+                            </div>
                         )}
                     </div>
                 </div>
@@ -1000,14 +1038,14 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
 
             {/* ── New Session Modal ── */}
             <Dialog open={isSessionModalOpen} onOpenChange={setIsSessionModalOpen}>
-                <DialogContent className="sm:max-w-md max-w-[95vw] overflow-hidden flex flex-col max-h-[90vh]">
-                    <DialogHeader>
+                <DialogContent className="sm:max-w-md max-w-[95vw] overflow-hidden flex flex-col max-h-[90vh] p-0">
+                    <DialogHeader className="p-6 pb-0">
                         <DialogTitle className="text-lg font-bold">
                             {stagedLogs.length > 0 ? "Active Session" : "Start New Session"}
                         </DialogTitle>
                     </DialogHeader>
-                    
-                    <div className="flex-1 overflow-y-auto pr-1 -mr-1 py-4 space-y-6">
+
+                    <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
                         {/* Session Details Summary */}
                         <div className="space-y-3">
                             <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Session Context</label>
@@ -1137,45 +1175,44 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                         )}
                     </div>
 
-                    <DialogFooter className="pt-4 border-t border-gray-100 flex-col sm:flex-row gap-2">
+                    <DialogFooter className="p-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-col sm:space-x-0 gap-3">
                         {stagedLogs.length > 0 ? (
                             <>
-                                <Button 
-                                    variant="ghost" 
-                                    onClick={handleClearStaging} 
-                                    className="w-full sm:w-auto text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                                <Button
+                                    onClick={handleFinishSession}
+                                    disabled={isSavingSession}
+                                    className="w-full bg-[#2FA9D9] hover:bg-[#2195c0] text-white shadow-lg shadow-[#2FA9D9]/20 h-11"
                                 >
-                                    Discard Session
+                                    {isSavingSession ? "Saving…" : "Finish Session & Save All"}
                                 </Button>
-                                <div className="flex-1 shrink-0" />
                                 <Button
                                     variant="outline"
                                     onClick={handleStartAddingToSession}
-                                    className="w-full sm:w-auto border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5"
+                                    className="w-full border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5 h-11"
                                 >
                                     <Plus className="w-4 h-4 mr-1.5" />
                                     Add Another Log
                                 </Button>
                                 <Button
-                                    onClick={handleFinishSession}
-                                    disabled={isSavingSession}
-                                    className="w-full sm:w-auto bg-[#2FA9D9] hover:bg-[#2195c0] text-white shadow-lg shadow-[#2FA9D9]/20"
+                                    variant="ghost"
+                                    onClick={handleClearStaging}
+                                    className="w-full text-rose-500 hover:text-rose-600 hover:bg-rose-50 h-11"
                                 >
-                                    {isSavingSession ? "Saving…" : "Finish Session & Save All"}
+                                    Discard Session
                                 </Button>
                             </>
                         ) : (
                             <>
-                                <Button variant="outline" onClick={() => setIsSessionModalOpen(false)} className="w-full sm:w-auto">
-                                    Cancel
-                                </Button>
                                 <Button
                                     onClick={handleStartAddingToSession}
                                     disabled={!sessionData.address || !sessionData.customerName}
-                                    className="w-full sm:w-auto bg-[#2FA9D9] hover:bg-[#2195c0] text-white shadow-lg shadow-[#2FA9D9]/20"
+                                    className="w-full bg-[#2FA9D9] hover:bg-[#2195c0] text-white shadow-lg shadow-[#2FA9D9]/20 h-11"
                                 >
                                     <Plus className="w-4 h-4 mr-1.5" />
                                     Start Session & Add Log
+                                </Button>
+                                <Button variant="outline" onClick={() => setIsSessionModalOpen(false)} className="w-full h-11">
+                                    Cancel
                                 </Button>
                             </>
                         )}
@@ -1203,11 +1240,11 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                         <Button type="button" variant="outline" onClick={() => setIsDeleteSessionModalOpen(false)} className="w-full sm:w-auto">
                             Cancel
                         </Button>
-                        <Button 
-                            type="button" 
-                            variant="destructive" 
-                            onClick={handleDeleteSession} 
-                            disabled={isDeleting} 
+                        <Button
+                            type="button"
+                            variant="destructive"
+                            onClick={handleDeleteSession}
+                            disabled={isDeleting}
                             className="w-full sm:w-auto bg-rose-600 hover:bg-rose-700 font-bold"
                         >
                             {isDeleting ? "Deleting…" : "Yes, Delete Everything"}
@@ -1255,6 +1292,269 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                 </DialogContent>
             </Dialog>
 
+            {/* ── Session Details Modal ── */}
+            <Dialog open={isSessionDetailsModalOpen} onOpenChange={setIsSessionDetailsModalOpen}>
+                <DialogContent className="sm:max-w-5xl max-w-[95vw] max-h-[90vh] flex flex-col p-0 overflow-hidden">
+                    <DialogHeader className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 shrink-0">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                            <div>
+                                <DialogTitle className="text-lg font-bold flex items-center gap-2">
+                                    <Package className="w-5 h-5 text-[#2FA9D9]" />
+                                    Session Details
+                                </DialogTitle>
+                                {selectedSessionForDetails && (
+                                    <div className="text-sm text-gray-500 mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
+                                        <span className="font-mono text-[#2FA9D9]">{selectedSessionForDetails.sessionId}</span>
+                                        <span className="hidden sm:inline text-gray-300">•</span>
+                                        <span>{selectedSessionForDetails.address}</span>
+                                    </div>
+                                )}
+                            </div>
+                            {selectedSessionForDetails && (
+                                <Button 
+                                    variant="outline" 
+                                    size="sm" 
+                                    className="w-full sm:w-auto border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5 shadow-sm"
+                                    onClick={() => {
+                                        const { sessionId, address, logs } = selectedSessionForDetails;
+                                        const today = format(new Date(), "MMMM d, yyyy");
+                                        
+                                        // Generate HTML content for Word
+                                        const htmlContent = `
+                                            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+                                            <head>
+                                                <meta charset='utf-8'>
+                                                <title>Session Report</title>
+                                                <style>
+                                                    body { font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; }
+                                                    .report-header { text-align: center; border-bottom: 2px solid #2FA9D9; padding-bottom: 10px; margin-bottom: 20px; }
+                                                    .report-header h1 { color: #2FA9D9; margin: 0; font-size: 24pt; }
+                                                    .report-header p { margin: 5px 0; color: #666; font-size: 10pt; }
+                                                    .meta-info { margin-bottom: 30px; background: #f9f9f9; padding: 15px; border-radius: 8px; }
+                                                    .meta-info p { margin: 3px 0; font-size: 11pt; }
+                                                    .meta-info b { color: #2FA9D9; }
+                                                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                                                    th { background-color: #2FA9D9; color: white; padding: 12px; text-align: left; font-size: 10pt; border: 1px solid #2FA9D9; }
+                                                    td { padding: 10px; border: 1px solid #eee; font-size: 10pt; vertical-align: top; }
+                                                    tr:nth-child(even) { background-color: #fafafa; }
+                                                    .total-row { background-color: #f0f9ff !important; font-weight: bold; }
+                                                    .footer { margin-top: 40px; text-align: center; font-size: 9pt; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
+                                                    .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 8pt; font-weight: bold; }
+                                                </style>
+                                            </head>
+                                            <body>
+                                                <div class="report-header">
+                                                    <h1>DAILY LOGS REPORT</h1>
+                                                    <p>Water Station Management System • Kwago Dashboard</p>
+                                                </div>
+
+                                                <div class="meta-info">
+                                                    <p><b>Session ID:</b> ${sessionId}</p>
+                                                    <p><b>Location:</b> ${address}</p>
+                                                    <p><b>Report Date:</b> ${today}</p>
+                                                    <p><b>Total Entries:</b> ${logs.length}</p>
+                                                </div>
+
+                                                <table>
+                                                    <thead>
+                                                        <tr>
+                                                            <th>Date</th>
+                                                            <th>Customer</th>
+                                                            <th>Product Details</th>
+                                                            <th>Quantity</th>
+                                                            <th>Amount</th>
+                                                            <th>Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        ${logs.map(log => {
+                                                            const quantity = log.quantity ?? 1;
+                                                            const wType = log.water_type || "mineral";
+                                                            const cType = log.container_type || "round";
+                                                            const price = log.total_price ?? (quantity * 5 * (wType === "alkaline" ? 50 : 35));
+                                                            return `
+                                                                <tr>
+                                                                    <td>${format(new Date(log.log_date), "MMM d, yyyy")}</td>
+                                                                    <td>${log.customer_name}</td>
+                                                                    <td>${cType} • ${wType}</td>
+                                                                    <td>${quantity}</td>
+                                                                    <td>₱${price.toLocaleString()}</td>
+                                                                    <td>${log.status || "ongoing"}</td>
+                                                                </tr>
+                                                            `;
+                                                        }).join('')}
+                                                    </tbody>
+                                                </table>
+
+                                                <div class="footer">
+                                                    <p>© ${new Date().getFullYear()} Water Station Management. Generated via Kwago Dashboard.</p>
+                                                </div>
+                                            </body>
+                                            </html>
+                                        `;
+
+                                        const blob = new Blob(['\ufeff', htmlContent], {
+                                            type: 'application/msword'
+                                        });
+                                        
+                                        const url = URL.createObjectURL(blob);
+                                        const link = document.createElement('a');
+                                        link.href = url;
+                                        link.download = `Session_Report_${sessionId}.doc`;
+                                        document.body.appendChild(link);
+                                        link.click();
+                                        document.body.removeChild(link);
+                                        URL.revokeObjectURL(url);
+                                    }}
+                                >
+                                    <Printer className="w-4 h-4 mr-2" />
+                                    Download Word Doc
+                                </Button>
+                            )}
+                        </div>
+                    </DialogHeader>
+
+                    <div className="flex-1 overflow-y-auto bg-gray-50/10 relative">
+                        {selectedSessionForDetails && (
+                            (() => {
+                                const ongoing = selectedSessionForDetails.logs.filter(l => !l.status || l.status === "ongoing");
+                                const delivered = selectedSessionForDetails.logs.filter(l => l.status === "delivered");
+                                const cancelled = selectedSessionForDetails.logs.filter(l => l.status === "cancelled");
+
+                                return (
+                                    <Tabs defaultValue="ongoing" className="w-full flex flex-col min-h-full">
+                                        <div className="px-6 border-b border-gray-100 bg-white sticky top-0 z-10 shrink-0">
+                                            <TabsList className="bg-transparent p-0 gap-0 h-auto border-0 w-full sm:w-auto flex overflow-x-auto hide-scrollbar">
+                                                <TabsTrigger value="ongoing" className="relative py-3 px-4 rounded-none text-sm data-[state=active]:text-[#2FA9D9] data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-transparent data-[state=active]:after:bg-[#2FA9D9] whitespace-nowrap">
+                                                    Ongoing ({ongoing.length})
+                                                </TabsTrigger>
+                                                <TabsTrigger value="delivered" className="relative py-3 px-4 rounded-none text-sm data-[state=active]:text-emerald-600 data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-transparent data-[state=active]:after:bg-emerald-500 whitespace-nowrap">
+                                                    Delivered ({delivered.length})
+                                                </TabsTrigger>
+                                                <TabsTrigger value="cancelled" className="relative py-3 px-4 rounded-none text-sm data-[state=active]:text-rose-600 data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-transparent data-[state=active]:after:bg-rose-500 whitespace-nowrap">
+                                                    Cancelled ({cancelled.length})
+                                                </TabsTrigger>
+                                                <TabsTrigger value="report" className="relative py-3 px-4 rounded-none text-sm data-[state=active]:text-amber-600 data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-transparent data-[state=active]:after:bg-amber-500 whitespace-nowrap">
+                                                    Report Preview
+                                                </TabsTrigger>
+                                            </TabsList>
+                                        </div>
+
+                                        <div className="p-4 sm:p-6 flex-1 bg-gray-50/50">
+                                            <TabsContent value="ongoing" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
+                                                {ongoing.length === 0 ? (
+                                                    <div className="py-12 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-100 shadow-sm">No ongoing orders in this session</div>
+                                                ) : (
+                                                    <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-sm">
+                                                        <DataTable columns={ongoingColumns} data={ongoing} />
+                                                    </div>
+                                                )}
+                                            </TabsContent>
+
+                                            <TabsContent value="delivered" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
+                                                {delivered.length === 0 ? (
+                                                    <div className="py-12 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-100 shadow-sm">No delivered orders in this session</div>
+                                                ) : (
+                                                    <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-sm">
+                                                        <DataTable columns={deliveredColumns} data={delivered} />
+                                                    </div>
+                                                )}
+                                            </TabsContent>
+
+                                            <TabsContent value="cancelled" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
+                                                {cancelled.length === 0 ? (
+                                                    <div className="py-12 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-100 shadow-sm">No cancelled orders in this session</div>
+                                                ) : (
+                                                    <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-sm">
+                                                        <DataTable columns={cancelledColumns} data={cancelled} />
+                                                    </div>
+                                                )}
+                                            </TabsContent>
+
+                                            <TabsContent value="report" className="m-0 focus-visible:outline-none focus-visible:ring-0">
+                                                <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-8 sm:p-12 mx-auto max-w-4xl min-h-[800px] font-serif text-gray-800">
+                                                    {/* Header */}
+                                                    <div className="text-center border-b-2 border-[#2FA9D9] pb-6 mb-8">
+                                                        <h1 className="text-4xl font-bold text-[#2FA9D9] tracking-tight">DAILY LOGS REPORT</h1>
+                                                        <p className="text-sm text-gray-500 mt-2 uppercase tracking-widest">Water Station Management System • Kwago Dashboard</p>
+                                                    </div>
+
+                                                    {/* Meta Info Section */}
+                                                    <div className="grid grid-cols-2 gap-8 mb-10 bg-gray-50 p-6 rounded-lg border border-gray-100 font-sans">
+                                                        <div className="space-y-2">
+                                                            <p className="text-[10px] text-gray-400 uppercase font-bold">Session Identity</p>
+                                                            <p className="text-sm font-mono text-[#2FA9D9] font-bold">{selectedSessionForDetails.sessionId}</p>
+                                                            <p className="text-[10px] text-gray-400 uppercase font-bold mt-4">Generation Date</p>
+                                                            <p className="text-sm font-medium">{format(new Date(), "MMMM d, yyyy")}</p>
+                                                        </div>
+                                                        <div className="space-y-2 text-right">
+                                                            <p className="text-[10px] text-gray-400 uppercase font-bold">Delivery Location</p>
+                                                            <p className="text-sm leading-relaxed font-medium">{selectedSessionForDetails.address}</p>
+                                                            <p className="text-[10px] text-gray-400 uppercase font-bold mt-4">Volume Statistics</p>
+                                                            <p className="text-sm font-medium">{selectedSessionForDetails.logs.length} Total Orders</p>
+                                                        </div>
+                                                    </div>
+
+                                                    {/* Table */}
+                                                    <div className="overflow-hidden border border-gray-200 rounded-lg mb-10 font-sans">
+                                                        <table className="w-full text-left border-collapse">
+                                                            <thead>
+                                                                <tr className="bg-[#2FA9D9] text-white">
+                                                                    <th className="p-3 text-[10px] font-bold uppercase">Date</th>
+                                                                    <th className="p-3 text-[10px] font-bold uppercase">Customer</th>
+                                                                    <th className="p-3 text-[10px] font-bold uppercase">Details</th>
+                                                                    <th className="p-3 text-[10px] font-bold uppercase text-center">Qty</th>
+                                                                    <th className="p-3 text-[10px] font-bold uppercase text-right">Amount</th>
+                                                                </tr>
+                                                            </thead>
+                                                            <tbody className="divide-y divide-gray-100">
+                                                                {selectedSessionForDetails.logs.map((log, i) => {
+                                                                    const quantity = log.quantity ?? 1;
+                                                                    const wType = log.water_type || "mineral";
+                                                                    const cType = log.container_type || "round";
+                                                                    const price = log.total_price ?? (quantity * 5 * (wType === "alkaline" ? 50 : 35));
+                                                                    return (
+                                                                        <tr key={i} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/30"}>
+                                                                            <td className="p-3 text-xs">{format(new Date(log.log_date), "MMM d, yyyy")}</td>
+                                                                            <td className="p-3 text-xs font-bold text-gray-900">{log.customer_name}</td>
+                                                                            <td className="p-3 text-xs capitalize text-gray-600">{cType} • {wType}</td>
+                                                                            <td className="p-3 text-xs text-center font-mono font-bold">{quantity}</td>
+                                                                            <td className="p-3 text-xs text-right font-bold text-emerald-600">₱{price.toLocaleString()}</td>
+                                                                        </tr>
+                                                                    );
+                                                                })}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+
+                                                    {/* Footer */}
+                                                    <div className="mt-auto pt-10 text-center border-t border-gray-100 italic text-[10px] text-gray-400 font-sans">
+                                                        <p>This document is an official record generated via the Water Station Management Platform.</p>
+                                                        <p className="mt-1">Generated by Kwago Dashboard © {new Date().getFullYear()} • All Rights Reserved</p>
+                                                    </div>
+                                                </div>
+                                            </TabsContent>
+                                        </div>
+                                    </Tabs>
+                                );
+                            })()
+                        )}
+                    </div>
+                    <DialogFooter className="px-6 py-4 border-t border-gray-100 bg-gray-50/50 shrink-0">
+                        <Button variant="outline" onClick={() => setIsSessionDetailsModalOpen(false)}>
+                            Close
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
+
+            {/* ── Tally Modal ── */}
+            <TallyModal
+                open={isTallyModalOpen}
+                onClose={() => setIsTallyModalOpen(false)}
+                logs={selectedSessionForTally?.logs ?? []}
+            />
+
             <PrintableDailyLogs logs={initialData} />
         </>
     );
@@ -1265,9 +1565,9 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
 
 function StatusBadge({ status }: { status: string }) {
     const map: Record<string, { label: string; class: string }> = {
-        ongoing:   { label: "⏳ Ongoing",   class: "bg-sky-100 text-sky-700"       },
-        delivered: { label: "✅ Delivered",  class: "bg-emerald-100 text-emerald-700" },
-        cancelled: { label: "❌ Cancelled",  class: "bg-rose-100 text-rose-700"     },
+        ongoing: { label: "⏳ Ongoing", class: "bg-sky-100 text-sky-700" },
+        delivered: { label: "✅ Delivered", class: "bg-emerald-100 text-emerald-700" },
+        cancelled: { label: "❌ Cancelled", class: "bg-rose-100 text-rose-700" },
     };
     const { label, class: cls } = map[status] ?? map.ongoing;
     return (

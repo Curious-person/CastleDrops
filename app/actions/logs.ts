@@ -22,9 +22,11 @@ export async function createLog(formData: {
 }) {
     const supabase = await createClient();
 
+    const { price_per_gallon, total_gallons, quantity, total_price, ...rest } = formData;
+
     const { error } = await supabase
         .from("daily_logs")
-        .insert([{ ...formData, status: formData.status ?? "ongoing" }]);
+        .insert([{ ...rest, status: formData.status ?? "ongoing" }]);
 
     if (error) throw new Error(error.message);
 
@@ -32,28 +34,17 @@ export async function createLog(formData: {
     return { success: true };
 }
 
-export async function createLogsBulk(logs: {
-    log_date: string;
-    container_type: string | null;
-    water_type: string | null;
-    customer_id: string | null;
-    customer_name: string;
-    customer_address: string;
-    payment_method: string | null;
-    fulfillment_type: string | null;
-    quantity?: number;
-    price_per_gallon?: number | null;
-    total_gallons?: number | null;
-    total_price?: number | null;
-    status?: string | null;
-    session_id?: string | null;
-    session_address?: string | null;
-}[]) {
+export async function createLogsBulk(logs: any[]) {
     const supabase = await createClient();
+
+    const sanitizedLogs = logs.map(l => {
+        const { price_per_gallon, total_gallons, quantity, total_price, ...rest } = l;
+        return { ...rest, status: l.status ?? "ongoing" };
+    });
 
     const { error } = await supabase
         .from("daily_logs")
-        .insert(logs.map(l => ({ ...l, status: l.status ?? "ongoing" })));
+        .insert(sanitizedLogs);
 
     if (error) throw new Error(error.message);
 
@@ -134,6 +125,20 @@ export async function updateSession(sessionId: string, address: string) {
     const { error } = await supabase
         .from("daily_logs")
         .update({ session_address: address, customer_address: address })
+        .eq("session_id", sessionId);
+
+    if (error) throw new Error(error.message);
+
+    revalidatePath("/daily-logs");
+    return { success: true };
+}
+
+export async function updateSessionStatus(sessionId: string, status: string) {
+    const supabase = await createClient();
+
+    const { error } = await supabase
+        .from("daily_logs")
+        .update({ session_status: status })
         .eq("session_id", sessionId);
 
     if (error) throw new Error(error.message);
