@@ -1,0 +1,40 @@
+## Table `orders`
+
+Daily operational logs for water refilling business
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `created_at` | `timestamptz` |  |
+| `updated_at` | `timestamptz` |  Nullable |
+| `log_date` | `date` |  |
+| `container_type` | `text` |  Nullable |
+| `water_type` | `text` |  Nullable |
+| `customer_id` | `uuid` |  Nullable |
+| `customer_name` | `text` |  Nullable |
+| `customer_address` | `text` |  Nullable |
+| `payment_method` | `text` |  Nullable |
+| `fulfillment_type` | `text` |  Nullable |
+| `status` | `text` |  Nullable |
+| `session_id` | `text` |  Nullable |
+| `session_address` | `text` |  Nullable |
+| `session_status` | `text` |  Nullable |
+| `quantity` | `int4` |  Nullable |
+| `total_price` | `numeric` |  Nullable |
+| `total_gallons` | `numeric` |  Nullable |
+| `price_per_gallon` | `numeric` |  Nullable |
+
+## Table `customers`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `name` | `text` |  |
+| `address` | `text` |  Nullable |
+| `phone` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+

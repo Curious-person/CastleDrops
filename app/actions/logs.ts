@@ -25,7 +25,7 @@ export async function createLog(formData: {
     const { price_per_gallon, total_gallons, quantity, total_price, ...rest } = formData;
 
     const { error } = await supabase
-        .from("daily_logs")
+        .from("orders")
         .insert([{ ...rest, status: formData.status ?? "ongoing" }]);
 
     if (error) throw new Error(error.message);
@@ -43,7 +43,7 @@ export async function createLogsBulk(logs: any[]) {
     });
 
     const { error } = await supabase
-        .from("daily_logs")
+        .from("orders")
         .insert(sanitizedLogs);
 
     if (error) throw new Error(error.message);
@@ -67,7 +67,7 @@ export async function updateLog(id: number, formData: {
     const supabase = await createClient();
 
     const { error } = await supabase
-        .from("daily_logs")
+        .from("orders")
         .update(formData)
         .eq("id", id);
 
@@ -81,7 +81,7 @@ export async function deleteLog(id: number) {
     const supabase = await createClient();
 
     const { error } = await supabase
-        .from("daily_logs")
+        .from("orders")
         .delete()
         .eq("id", id);
 
@@ -95,7 +95,7 @@ export async function updateLogStatus(id: number, status: "ongoing" | "delivered
     const supabase = await createClient();
 
     const { error } = await supabase
-        .from("daily_logs")
+        .from("orders")
         .update({ status })
         .eq("id", id);
 
@@ -109,7 +109,7 @@ export async function deleteSession(sessionId: string) {
     const supabase = await createClient();
 
     const { error } = await supabase
-        .from("daily_logs")
+        .from("orders")
         .delete()
         .eq("session_id", sessionId);
 
@@ -123,7 +123,7 @@ export async function updateSession(sessionId: string, address: string) {
     const supabase = await createClient();
 
     const { error } = await supabase
-        .from("daily_logs")
+        .from("orders")
         .update({ session_address: address, customer_address: address })
         .eq("session_id", sessionId);
 
@@ -137,7 +137,7 @@ export async function updateSessionStatus(sessionId: string, status: string) {
     const supabase = await createClient();
 
     const { error } = await supabase
-        .from("daily_logs")
+        .from("orders")
         .update({ session_status: status })
         .eq("session_id", sessionId);
 
@@ -146,5 +146,6 @@ export async function updateSessionStatus(sessionId: string, status: string) {
     revalidatePath("/orders");
     return { success: true };
 }
+
 
 
