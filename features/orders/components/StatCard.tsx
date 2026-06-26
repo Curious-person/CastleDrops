@@ -6,21 +6,43 @@ type StatCardProps = {
     change: string;
     positive?: boolean;
     icon: LucideIcon;
+    iconBg?: string;
+    iconColor?: string;
 };
 
-export default function StatCard({ title, value, change, positive = true, icon: Icon }: StatCardProps) {
+export default function StatCard({
+    title,
+    value,
+    change,
+    positive = true,
+    icon: Icon,
+    iconBg = "bg-sky-50",
+    iconColor = "text-[#2FA9D9]",
+}: StatCardProps) {
+    const isGrowth = change.startsWith("+") || change.startsWith("-");
+
     return (
-        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4 sm:p-6 w-full sm:w-72 flex-shrink-0">
-            <div className="flex justify-between items-start mb-4">
-                <span className="text-gray-700 font-semibold text-sm sm:text-base">{title}</span>
-                <div className="bg-blue-50 p-2 rounded-lg">
-                    <Icon className="w-4 h-4 sm:w-5 sm:h-5 text-blue-400" />
-                </div>
+        <div className="bg-white border border-gray-100 rounded-xl p-4 flex items-start gap-3">
+            <div className={`w-10 h-10 rounded-lg ${iconBg} flex items-center justify-center ${iconColor} shrink-0`}>
+                <Icon className="w-5 h-5" />
             </div>
-            <p className="text-2xl sm:text-4xl font-bold text-gray-900 tracking-tight">{value}</p>
-            <p className={`mt-1 text-xs sm:text-sm font-medium ${positive ? "text-blue-500" : "text-red-500"}`}>
-                {change} <span className="text-gray-400 font-normal">from last month</span>
-            </p>
+            <div>
+                <p className="text-xs text-gray-500 font-medium font-sans">{title}</p>
+                <p className="text-xl font-bold text-gray-900 mt-0.5">{value}</p>
+                <p className="text-[10px] text-gray-400 mt-1">
+                    {isGrowth ? (
+                        <>
+                            <span className={positive ? "text-emerald-500 font-semibold" : "text-rose-500 font-semibold"}>
+                                {change}
+                            </span>{" "}
+                            from last month
+                        </>
+                    ) : (
+                        <span>{change} orders</span>
+                    )}
+                </p>
+            </div>
         </div>
     );
 }
+

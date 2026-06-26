@@ -11,7 +11,7 @@ import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 
-import DataTable, { type Column } from "@/features/orders/components/DataTable";
+import DataTable, { type Column } from "@/components/DataTable";
 import StatCard from "@/features/orders/components/StatCard";
 import PrintableOrders from "@/features/orders/components/PrintableOrders";
 import PageContainer from "@/components/PageContainer";
@@ -70,7 +70,7 @@ const PAYMENT_LABELS: Record<string, string> = {
     gcash: "GCash", cash: "Cash", bank_transfer: "Bank Transfer", credit: "Credit / Card",
 };
 const FULFILLMENT_LABELS: Record<string, string> = {
-    delivery: "🚚 Delivery", pickup: "🏪 Pick-up",
+    delivery: "Delivery", pickup: "Pick-up",
 };
 
 const PAYMENT_COLORS: Record<string, string> = {
@@ -634,36 +634,38 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
             title: "Actions",
             key: "id",
             render: (_v, item: Order) => (
-                <div className="flex gap-1.5">
+                <div className="flex justify-end gap-1.5">
                     <Button
-                        variant="outline" size="sm"
+                        variant="outline" size="icon-sm"
                         onClick={() => handleOpenView(item)}
                         title="View details"
+                        className="hover:text-[#2FA9D9]"
                     >
-                        <Eye className="w-4 h-4" />
+                        <Eye className="w-3.5 h-3.5" />
                     </Button>
                     <Button
-                        size="sm"
+                        variant="outline" size="icon-sm"
                         onClick={() => handleOpenStatusChange(item, "delivered")}
                         title="Mark as Delivered"
-                        className="bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300"
+                        className="hover:text-emerald-600"
                     >
-                        <CheckCircle2 className="w-4 h-4" />
+                        <CheckCircle2 className="w-3.5 h-3.5" />
                     </Button>
                     <Button
-                        size="sm"
+                        variant="outline" size="icon-sm"
                         onClick={() => handleOpenStatusChange(item, "cancelled")}
                         title="Cancel Order"
-                        className="bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100 hover:border-rose-300"
+                        className="hover:text-rose-600"
                     >
-                        <XCircle className="w-4 h-4" />
+                        <XCircle className="w-3.5 h-3.5" />
                     </Button>
                     <Button
-                        variant="outline" size="sm"
+                        variant="outline" size="icon-sm"
                         onClick={() => handleOpenDelete(item)}
                         title="Delete"
+                        className="hover:text-rose-600"
                     >
-                        <Trash className="w-4 h-4" />
+                        <Trash className="w-3.5 h-3.5" />
                     </Button>
                 </div>
             ),
@@ -676,20 +678,20 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
             title: "Actions",
             key: "id",
             render: (_v, item: Order) => (
-                <div className="flex gap-1.5">
-                    <Button variant="outline" size="sm" onClick={() => handleOpenView(item)} title="View details">
-                        <Eye className="w-4 h-4" />
+                <div className="flex justify-end gap-1.5">
+                    <Button variant="outline" size="icon-sm" onClick={() => handleOpenView(item)} title="View details" className="hover:text-[#2FA9D9]">
+                        <Eye className="w-3.5 h-3.5" />
                     </Button>
                     <Button
-                        size="sm"
+                        variant="outline" size="icon-sm"
                         onClick={() => handleOpenStatusChange(item, "ongoing")}
                         title="Restore to Ongoing"
-                        className="bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 hover:border-sky-300"
+                        className="hover:text-[#2FA9D9]"
                     >
                         <RotateCcw className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleOpenDelete(item)} title="Delete">
-                        <Trash className="w-4 h-4" />
+                    <Button variant="outline" size="icon-sm" onClick={() => handleOpenDelete(item)} title="Delete" className="hover:text-rose-600">
+                        <Trash className="w-3.5 h-3.5" />
                     </Button>
                 </div>
             ),
@@ -702,25 +704,198 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
             title: "Actions",
             key: "id",
             render: (_v, item: Order) => (
-                <div className="flex gap-1.5">
-                    <Button variant="outline" size="sm" onClick={() => handleOpenView(item)} title="View details">
-                        <Eye className="w-4 h-4" />
+                <div className="flex justify-end gap-1.5">
+                    <Button variant="outline" size="icon-sm" onClick={() => handleOpenView(item)} title="View details" className="hover:text-[#2FA9D9]">
+                        <Eye className="w-3.5 h-3.5" />
                     </Button>
                     <Button
-                        size="sm"
+                        variant="outline" size="icon-sm"
                         onClick={() => handleOpenStatusChange(item, "ongoing")}
                         title="Restore to Ongoing"
-                        className="bg-sky-50 text-sky-700 border border-sky-200 hover:bg-sky-100 hover:border-sky-300"
+                        className="hover:text-[#2FA9D9]"
                     >
                         <RotateCcw className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="outline" size="sm" onClick={() => handleOpenDelete(item)} title="Delete">
-                        <Trash className="w-4 h-4" />
+                    <Button variant="outline" size="icon-sm" onClick={() => handleOpenDelete(item)} title="Delete" className="hover:text-rose-600">
+                        <Trash className="w-3.5 h-3.5" />
                     </Button>
                 </div>
             ),
         },
     ];
+
+    const sessionColumns: Column<SessionGroup>[] = [
+        {
+            title: "Session Info",
+            key: "sessionInfo",
+            className: "py-3",
+            render: (_, group) => (
+                <div className="flex items-start gap-4 cursor-pointer" onClick={() => {
+                    setSelectedSessionForDetails(group);
+                    setIsSessionDetailsModalOpen(true);
+                }}>
+                    <div className="w-10 h-10 rounded-full bg-[#2FA9D9]/10 flex items-center justify-center shrink-0 mt-0.5">
+                        <Package className="w-5 h-5 text-[#2FA9D9]" />
+                    </div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <span className="font-bold text-sm text-[#2FA9D9]">{group.customerName}</span>
+                        </div>
+                        <div className="text-sm text-gray-500 max-w-[300px] truncate mt-1 flex items-center gap-1.5">
+                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
+                            {group.address}
+                        </div>
+                    </div>
+                </div>
+            )
+        },
+        {
+            title: "Date",
+            key: "date",
+            className: "py-3 align-middle",
+            render: (_, group) => (
+                <div className="flex flex-col">
+                    <span className="font-medium text-sm text-gray-900">{format(new Date(group.date), "MMM d, yyyy")}</span>
+                </div>
+            )
+        },
+        {
+            title: "Orders",
+            key: "ordersCount",
+            className: "py-3 align-middle",
+            render: (_, group) => (
+                <div className="inline-flex flex-col">
+                    <span className="font-bold text-gray-900 text-lg leading-tight">{group.logs.length}</span>
+                    <span className="text-xs text-gray-400 font-medium">orders</span>
+                </div>
+            )
+        },
+        {
+            title: "Status",
+            key: "status",
+            className: "py-3 align-middle",
+            render: (_, group) => (
+                <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
+                    <Select
+                        value={group.status}
+                        onValueChange={(val) => group.onStatusChange(group.sessionId, val)}
+                    >
+                        <SelectTrigger className="w-[130px] h-8 text-xs font-medium bg-gray-50 border-gray-200">
+                            <SelectValue placeholder="Status" />
+                        </SelectTrigger>
+                        <SelectContent>
+                            <SelectItem value="ongoing" className="text-xs">Ongoing</SelectItem>
+                            <SelectItem value="completed" className="text-xs">Completed</SelectItem>
+                            <SelectItem value="cancelled" className="text-xs">Cancelled</SelectItem>
+                        </SelectContent>
+                    </Select>
+                </div>
+            )
+        },
+        {
+            title: "Actions",
+            key: "actions",
+            className: "py-3 align-middle text-right",
+            render: (_, group) => (
+                <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                        variant="outline" size="icon-sm"
+                        onClick={() => {
+                            setSelectedSessionForDetails(group);
+                            setIsSessionDetailsModalOpen(true);
+                        }}
+                        className="hover:text-[#2FA9D9]"
+                        title="View Details"
+                    >
+                        <Eye className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                        variant="outline" size="icon-sm"
+                        onClick={() => {
+                            setSelectedSessionForTally(group);
+                            setIsTallyModalOpen(true);
+                        }}
+                        className="hover:text-emerald-600"
+                        title="Generate Tally"
+                    >
+                        <PackageCheck className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                        variant="outline" size="icon-sm"
+                        onClick={() => group.onEdit(group.sessionId, group.address)}
+                        className="hover:text-[#2FA9D9]"
+                        title="Edit Session Address"
+                    >
+                        <Edit className="w-3.5 h-3.5" />
+                    </Button>
+                    <Button
+                        variant="outline" size="icon-sm"
+                        onClick={() => group.onDelete(group.sessionId)}
+                        className="hover:text-rose-600"
+                        title="Delete Session"
+                    >
+                        <Trash className="w-3.5 h-3.5" />
+                    </Button>
+                </div>
+            )
+        }
+    ];
+
+    const renderSessionMobileItem = (group: SessionGroup) => (
+        <div className="p-4 space-y-3 cursor-pointer hover:bg-gray-50/50" onClick={() => {
+            setSelectedSessionForDetails(group);
+            setIsSessionDetailsModalOpen(true);
+        }}>
+            <div className="flex justify-between items-start">
+                <div className="flex items-start gap-3">
+                    <div className="w-8 h-8 rounded-full bg-[#2FA9D9]/10 flex items-center justify-center shrink-0">
+                        <Package className="w-4 h-4 text-[#2FA9D9]" />
+                    </div>
+                    <div>
+                        <div className="font-bold text-sm text-[#2FA9D9]">{group.customerName}</div>
+                        <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5 max-w-[200px] truncate">
+                            <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
+                            {group.address}
+                        </div>
+                    </div>
+                </div>
+                <div className="text-right">
+                    <div className="font-bold text-gray-900 text-lg leading-none">{group.logs.length}</div>
+                    <div className="text-[10px] text-gray-400 font-medium">orders</div>
+                </div>
+            </div>
+            <div className="flex items-center justify-between border-t border-gray-100 pt-3" onClick={(e) => e.stopPropagation()}>
+                <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase text-gray-400">Date</span>
+                    <span className="text-xs font-medium text-gray-900">{format(new Date(group.date), "MMM d")}</span>
+                </div>
+                <Select
+                    value={group.status}
+                    onValueChange={(val) => group.onStatusChange(group.sessionId, val)}
+                >
+                    <SelectTrigger className="w-[110px] h-7 text-[10px] font-medium bg-gray-50 border-gray-200">
+                        <SelectValue placeholder="Status" />
+                    </SelectTrigger>
+                    <SelectContent>
+                        <SelectItem value="ongoing" className="text-xs">Ongoing</SelectItem>
+                        <SelectItem value="completed" className="text-xs">Completed</SelectItem>
+                        <SelectItem value="cancelled" className="text-xs">Cancelled</SelectItem>
+                    </SelectContent>
+                </Select>
+            </div>
+            <div className="flex justify-end gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
+                <Button variant="outline" size="icon-sm" onClick={() => { setSelectedSessionForTally(group); setIsTallyModalOpen(true); }} className="hover:text-emerald-600">
+                    <PackageCheck className="w-3.5 h-3.5" />
+                </Button>
+                <Button variant="outline" size="icon-sm" onClick={() => group.onEdit(group.sessionId, group.address)} className="hover:text-[#2FA9D9]">
+                    <Edit className="w-3.5 h-3.5" />
+                </Button>
+                <Button variant="outline" size="icon-sm" onClick={() => group.onDelete(group.sessionId)} className="hover:text-rose-600">
+                    <Trash className="w-3.5 h-3.5" />
+                </Button>
+            </div>
+        </div>
+    );
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -762,6 +937,48 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     return (
         <>
             <PageContainer title="Orders">
+                <div className="p-4 sm:p-6 lg:p-8 space-y-6">
+                    {/* ─── STATS CARDS GRID ─── */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+                        <StatCard
+                            title="Total Revenue"
+                            value={`₱${totalRevenue.toLocaleString()}`}
+                            change="+8%"
+                            positive={true}
+                            icon={PhilippinePeso}
+                            iconBg="bg-emerald-50"
+                            iconColor="text-emerald-600"
+                        />
+                        <StatCard
+                            title="Total Orders"
+                            value={totalOrders.toString()}
+                            change="+12%"
+                            positive={true}
+                            icon={PackageCheck}
+                            iconBg="bg-sky-50"
+                            iconColor="text-sky-600"
+                        />
+                        <StatCard
+                            title="Ongoing Orders"
+                            value={initialData.filter(log => log.status === "ongoing").length.toString()}
+                            change="Active"
+                            positive={true}
+                            icon={Clock}
+                            iconBg="bg-sky-50/70"
+                            iconColor="text-[#2FA9D9]"
+                        />
+                        <StatCard
+                            title="Delivered Orders"
+                            value={initialData.filter(log => log.status === "delivered").length.toString()}
+                            change="Completed"
+                            positive={true}
+                            icon={CheckCircle2}
+                            iconBg="bg-emerald-50/70"
+                            iconColor="text-emerald-500"
+                        />
+                    </div>
+                </div>
+
                 {/* ── Table Panel ── */}
                     {/* Toolbar */}
                     <div className="p-4 sm:p-6 flex flex-col sm:flex-row gap-3 border-b border-gray-100">
@@ -813,117 +1030,12 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                 <p className="text-gray-400 text-sm mt-1">Start a new session to begin logging orders.</p>
                             </div>
                         ) : (
-                            <div className="border border-gray-100 rounded-xl overflow-hidden shadow-sm">
-                                <Table>
-                                    <TableHeader className="bg-gray-50/50">
-                                        <TableRow>
-                                            <TableHead className="py-3">Session Info</TableHead>
-                                            <TableHead className="py-3">Date</TableHead>
-                                            <TableHead className="py-3">Orders</TableHead>
-                                            <TableHead className="py-3">Status</TableHead>
-                                            <TableHead className="py-3 text-right">Actions</TableHead>
-                                        </TableRow>
-                                    </TableHeader>
-                                    <TableBody>
-                                        {allSessions.filter(group => group.status === sessionListTab).map((group) => (
-                                            <TableRow
-                                                key={group.sessionId}
-                                                className="cursor-pointer hover:bg-gray-50/50 transition-colors"
-                                                onClick={() => {
-                                                    setSelectedSessionForDetails(group);
-                                                    setIsSessionDetailsModalOpen(true);
-                                                }}
-                                            >
-                                                <TableCell className="py-4">
-                                                    <div className="flex items-start gap-4">
-                                                        <div className="w-10 h-10 rounded-full bg-[#2FA9D9]/10 flex items-center justify-center shrink-0 mt-0.5">
-                                                            <Package className="w-5 h-5 text-[#2FA9D9]" />
-                                                        </div>
-                                                        <div>
-                                                            <div className="flex items-center gap-2">
-                                                                <span className="font-bold text-sm text-[#2FA9D9]">{group.customerName}</span>
-                                                            </div>
-                                                            <div className="text-sm text-gray-500 max-w-[300px] truncate mt-1 flex items-center gap-1.5">
-                                                                <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                                                                {group.address}
-                                                            </div>
-                                                        </div>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="py-4 align-middle">
-                                                    <div className="flex flex-col">
-                                                        <span className="font-medium text-sm text-gray-900">{format(new Date(group.date), "MMM d, yyyy")}</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="py-4 align-middle">
-                                                    <div className="inline-flex flex-col">
-                                                        <span className="font-bold text-gray-900 text-lg leading-tight">{group.logs.length}</span>
-                                                        <span className="text-xs text-gray-400 font-medium">orders</span>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="py-4 align-middle">
-                                                    <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                                                        <Select
-                                                            value={group.status}
-                                                            onValueChange={(val) => group.onStatusChange(group.sessionId, val)}
-                                                        >
-                                                            <SelectTrigger className="w-[130px] h-8 text-xs font-medium bg-gray-50 border-gray-200">
-                                                                <SelectValue placeholder="Status" />
-                                                            </SelectTrigger>
-                                                            <SelectContent>
-                                                                <SelectItem value="ongoing" className="text-xs">⏳ Ongoing</SelectItem>
-                                                                <SelectItem value="completed" className="text-xs">✅ Completed</SelectItem>
-                                                                <SelectItem value="cancelled" className="text-xs">❌ Cancelled</SelectItem>
-                                                            </SelectContent>
-                                                        </Select>
-                                                    </div>
-                                                </TableCell>
-                                                <TableCell className="py-4 align-middle text-right">
-                                                    <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                                                        <Button
-                                                            variant="ghost" size="icon"
-                                                            onClick={() => {
-                                                                setSelectedSessionForTally(group);
-                                                                setIsTallyModalOpen(true);
-                                                            }}
-                                                            className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50 h-8 w-8"
-                                                            title="Generate Tally"
-                                                        >
-                                                            <PackageCheck className="w-4 h-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost" size="icon"
-                                                            onClick={() => group.onEdit(group.sessionId, group.address)}
-                                                            className="text-gray-500 hover:text-[#2FA9D9] hover:bg-[#2FA9D9]/5 h-8 w-8"
-                                                            title="Edit Session Address"
-                                                        >
-                                                            <Edit className="w-4 h-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost" size="icon"
-                                                            onClick={() => group.onDelete(group.sessionId)}
-                                                            className="text-rose-500 hover:text-rose-600 hover:bg-rose-50 h-8 w-8"
-                                                            title="Delete Session"
-                                                        >
-                                                            <Trash className="w-4 h-4" />
-                                                        </Button>
-                                                        <Button
-                                                            variant="ghost" size="sm"
-                                                            className="text-[#2FA9D9] hover:text-[#2195c0] hover:bg-[#2FA9D9]/10 ml-2 hidden sm:inline-flex font-medium"
-                                                            onClick={() => {
-                                                                setSelectedSessionForDetails(group);
-                                                                setIsSessionDetailsModalOpen(true);
-                                                            }}
-                                                        >
-                                                            View Details
-                                                        </Button>
-                                                    </div>
-                                                </TableCell>
-                                            </TableRow>
-                                        ))}
-                                    </TableBody>
-                                </Table>
-                            </div>
+                            <DataTable
+                                columns={sessionColumns}
+                                data={allSessions.filter(group => group.status === sessionListTab)}
+                                keyExtractor={(item) => item.sessionId}
+                                renderMobileItem={renderSessionMobileItem}
+                            />
                         )}
                     </div>
                 </PageContainer>
@@ -1261,7 +1373,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                 <Button
                                     onClick={handleFinishSession}
                                     disabled={isSavingSession}
-                                    className="w-full bg-[#2FA9D9] hover:bg-[#2195c0] text-white shadow-lg shadow-[#2FA9D9]/20 h-11"
+                                    className="w-full bg-[#2FA9D9] hover:bg-[#2195c0] text-white h-11 border border-[#2FA9D9]"
                                 >
                                     {isSavingSession ? "Saving…" : "Finish Session & Save All"}
                                 </Button>
@@ -1286,7 +1398,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                 <Button
                                     onClick={handleStartAddingToSession}
                                     disabled={!sessionData.address || !sessionData.customerName}
-                                    className="w-full bg-[#2FA9D9] hover:bg-[#2195c0] text-white shadow-lg shadow-[#2FA9D9]/20 h-11"
+                                    className="w-full bg-[#2FA9D9] hover:bg-[#2195c0] text-white h-11 border border-[#2FA9D9]"
                                 >
                                     <Plus className="w-4 h-4 mr-1.5" />
                                     Start Session & Add Log
@@ -1394,7 +1506,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                 <Button
                                     variant="outline"
                                     size="sm"
-                                    className="w-full sm:w-auto border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5 shadow-sm"
+                                    className="w-full sm:w-auto border border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5"
                                     onClick={() => {
                                         const { sessionId, address, logs } = selectedSessionForDetails;
                                         const today = format(new Date(), "MMMM d, yyyy");
@@ -1523,36 +1635,30 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                         <div className="p-4 sm:p-6 flex-1 bg-gray-50/50">
                                             <TabsContent value="ongoing" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
                                                 {ongoing.length === 0 ? (
-                                                    <div className="py-12 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-100 shadow-sm">No ongoing orders in this session</div>
+                                                    <div className="py-12 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-100">No ongoing orders in this session</div>
                                                 ) : (
-                                                    <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-sm">
-                                                        <DataTable columns={ongoingColumns} data={ongoing} />
-                                                    </div>
+                                                    <DataTable columns={ongoingColumns} data={ongoing} keyExtractor={(item) => String(item.id)} />
                                                 )}
                                             </TabsContent>
 
                                             <TabsContent value="delivered" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
                                                 {delivered.length === 0 ? (
-                                                    <div className="py-12 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-100 shadow-sm">No delivered orders in this session</div>
+                                                    <div className="py-12 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-100">No delivered orders in this session</div>
                                                 ) : (
-                                                    <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-sm">
-                                                        <DataTable columns={deliveredColumns} data={delivered} />
-                                                    </div>
+                                                    <DataTable columns={deliveredColumns} data={delivered} keyExtractor={(item) => String(item.id)} />
                                                 )}
                                             </TabsContent>
 
                                             <TabsContent value="cancelled" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
                                                 {cancelled.length === 0 ? (
-                                                    <div className="py-12 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-100 shadow-sm">No cancelled orders in this session</div>
+                                                    <div className="py-12 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-100">No cancelled orders in this session</div>
                                                 ) : (
-                                                    <div className="overflow-x-auto rounded-xl border border-gray-100 bg-white shadow-sm">
-                                                        <DataTable columns={cancelledColumns} data={cancelled} />
-                                                    </div>
+                                                    <DataTable columns={cancelledColumns} data={cancelled} keyExtractor={(item) => String(item.id)} />
                                                 )}
                                             </TabsContent>
 
                                             <TabsContent value="report" className="m-0 focus-visible:outline-none focus-visible:ring-0">
-                                                <div className="bg-white rounded-xl border border-gray-200 shadow-lg p-8 sm:p-12 mx-auto max-w-4xl min-h-[800px] font-serif text-gray-800">
+                                                <div className="bg-white rounded-xl border border-gray-200 p-8 sm:p-12 mx-auto max-w-4xl min-h-[800px] font-serif text-gray-800">
                                                     {/* Header */}
                                                     <div className="text-center border-b-2 border-[#2FA9D9] pb-6 mb-8">
                                                         <h1 className="text-4xl font-bold text-[#2FA9D9] tracking-tight">DAILY LOGS REPORT</h1>
@@ -1645,9 +1751,9 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
 
 function StatusBadge({ status }: { status: string }) {
     const map: Record<string, { label: string; class: string }> = {
-        ongoing: { label: "⏳ Ongoing", class: "bg-sky-100 text-sky-700" },
-        delivered: { label: "✅ Delivered", class: "bg-emerald-100 text-emerald-700" },
-        cancelled: { label: "❌ Cancelled", class: "bg-rose-100 text-rose-700" },
+        ongoing: { label: "Ongoing", class: "bg-sky-50 text-sky-700 border border-sky-200" },
+        delivered: { label: "Delivered", class: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
+        cancelled: { label: "Cancelled", class: "bg-rose-50 text-rose-700 border border-rose-200" },
     };
     const { label, class: cls } = map[status] ?? map.ongoing;
     return (

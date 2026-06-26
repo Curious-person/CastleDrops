@@ -5,7 +5,9 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import {
     ArrowLeft, ArrowRight, Check,
-    Package, Droplets, CreditCard, Truck, Flag
+    Package, Droplets, CreditCard, Truck, Flag,
+    Circle, Square, Droplet, Waves, Smartphone,
+    Banknote, Landmark, Store, Clock, CheckCircle2, XCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,9 +78,9 @@ const FULFILLMENT_LABELS: Record<FulfillmentType, string> = {
     pickup:   "Pick-up",
 };
 
-const STATUS_CONFIG: Record<OrderStatus, { icon: string; label: string; desc: string; selectedBorder: string; selectedBg: string; selectedText: string; checkBg: string }> = {
+const STATUS_CONFIG: Record<OrderStatus, { icon: React.ReactNode; label: string; desc: string; selectedBorder: string; selectedBg: string; selectedText: string; checkBg: string }> = {
     ongoing: {
-        icon:          "⏳",
+        icon:          <Clock className="w-6 h-6 text-[#2FA9D9]" />,
         label:         "Ongoing",
         desc:          "Order is active and in progress",
         selectedBorder: "border-[#2FA9D9]",
@@ -87,7 +89,7 @@ const STATUS_CONFIG: Record<OrderStatus, { icon: string; label: string; desc: st
         checkBg:       "bg-[#2FA9D9]",
     },
     delivered: {
-        icon:          "✅",
+        icon:          <CheckCircle2 className="w-6 h-6 text-emerald-600" />,
         label:         "Delivered",
         desc:          "Order has already been delivered",
         selectedBorder: "border-emerald-500",
@@ -96,7 +98,7 @@ const STATUS_CONFIG: Record<OrderStatus, { icon: string; label: string; desc: st
         checkBg:       "bg-emerald-500",
     },
     cancelled: {
-        icon:          "❌",
+        icon:          <XCircle className="w-6 h-6 text-rose-600" />,
         label:         "Cancelled",
         desc:          "Order was cancelled before fulfillment",
         selectedBorder: "border-rose-500",
@@ -127,7 +129,7 @@ function OptionCard({
 }: {
     selected: boolean;
     onClick: () => void;
-    icon: string;
+    icon: React.ReactNode;
     label: string;
     desc: string;
     wide?: boolean;
@@ -144,7 +146,7 @@ function OptionCard({
                 }
             `}
         >
-            <div className="text-3xl mb-3 leading-none">{icon}</div>
+            <div className="mb-3 leading-none">{icon}</div>
             <div className={`font-semibold text-sm ${selected ? "text-[#2FA9D9]" : "text-gray-800"}`}>{label}</div>
             <div className="text-xs text-gray-500 mt-1 leading-relaxed">{desc}</div>
             {selected && (
@@ -359,14 +361,14 @@ function MultiStepForm() {
                                         <OptionCard
                                             selected={formData.container_type === "round"}
                                             onClick={() => setFormData((p) => ({ ...p, container_type: "round" }))}
-                                            icon="🫙"
+                                            icon={<Circle className="w-8 h-8 text-[#2FA9D9]" />}
                                             label="Round"
                                             desc="Cylindrical gallon container"
                                         />
                                         <OptionCard
                                             selected={formData.container_type === "flat"}
                                             onClick={() => setFormData((p) => ({ ...p, container_type: "flat" }))}
-                                            icon="📦"
+                                            icon={<Square className="w-8 h-8 text-[#2FA9D9]" />}
                                             label="Flat"
                                             desc="Flat / rectangular container"
                                         />
@@ -414,14 +416,14 @@ function MultiStepForm() {
                                         <OptionCard
                                             selected={formData.water_type === "alkaline"}
                                             onClick={() => setFormData((p) => ({ ...p, water_type: "alkaline" }))}
-                                            icon="💧"
+                                            icon={<Droplet className="w-8 h-8 text-[#2FA9D9]" />}
                                             label="Alkaline"
                                             desc="pH-balanced purified water"
                                         />
                                         <OptionCard
                                             selected={formData.water_type === "mineral"}
                                             onClick={() => setFormData((p) => ({ ...p, water_type: "mineral" }))}
-                                            icon="🌊"
+                                            icon={<Waves className="w-8 h-8 text-[#2FA9D9]" />}
                                             label="Mineral"
                                             desc="Natural mineral spring water"
                                         />
@@ -468,28 +470,28 @@ function MultiStepForm() {
                                     <OptionCard
                                         selected={formData.payment_method === "gcash"}
                                         onClick={() => setFormData((p) => ({ ...p, payment_method: "gcash" }))}
-                                        icon="📱"
+                                        icon={<Smartphone className="w-8 h-8 text-[#2FA9D9]" />}
                                         label="GCash"
                                         desc="Mobile wallet payment"
                                     />
                                     <OptionCard
                                         selected={formData.payment_method === "cash"}
                                         onClick={() => setFormData((p) => ({ ...p, payment_method: "cash" }))}
-                                        icon="💵"
+                                        icon={<Banknote className="w-8 h-8 text-[#2FA9D9]" />}
                                         label="Cash"
                                         desc="Physical cash on hand"
                                     />
                                     <OptionCard
                                         selected={formData.payment_method === "bank_transfer"}
                                         onClick={() => setFormData((p) => ({ ...p, payment_method: "bank_transfer" }))}
-                                        icon="🏦"
+                                        icon={<Landmark className="w-8 h-8 text-[#2FA9D9]" />}
                                         label="Bank Transfer"
                                         desc="Online bank payment"
                                     />
                                     <OptionCard
                                         selected={formData.payment_method === "credit"}
                                         onClick={() => setFormData((p) => ({ ...p, payment_method: "credit" }))}
-                                        icon="💳"
+                                        icon={<CreditCard className="w-8 h-8 text-[#2FA9D9]" />}
                                         label="Credit / Card"
                                         desc="Credit or debit card"
                                     />
@@ -502,14 +504,14 @@ function MultiStepForm() {
                                     <OptionCard
                                         selected={formData.fulfillment_type === "delivery"}
                                         onClick={() => setFormData((p) => ({ ...p, fulfillment_type: "delivery" }))}
-                                        icon="🚚"
+                                        icon={<Truck className="w-8 h-8 text-[#2FA9D9]" />}
                                         label="Delivery"
                                         desc="Deliver to customer's address"
                                     />
                                     <OptionCard
                                         selected={formData.fulfillment_type === "pickup"}
                                         onClick={() => setFormData((p) => ({ ...p, fulfillment_type: "pickup" }))}
-                                        icon="🏪"
+                                        icon={<Store className="w-8 h-8 text-[#2FA9D9]" />}
                                         label="Pick-up"
                                         desc="Customer picks up in-store"
                                     />
