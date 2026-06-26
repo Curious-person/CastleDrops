@@ -252,7 +252,7 @@ function MultiStepForm() {
                 customerId: customerId || ""
             });
             
-            router.push(`/daily-logs?${params.toString()}`);
+            router.push(`/orders?${params.toString()}`);
             router.refresh();
         } catch (err) {
             console.error(err);
@@ -676,3 +676,5 @@ export default function NewLogPage() {
         </Suspense>
     );
 }
+
+

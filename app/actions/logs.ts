@@ -30,7 +30,7 @@ export async function createLog(formData: {
 
     if (error) throw new Error(error.message);
 
-    revalidatePath("/daily-logs");
+    revalidatePath("/orders");
     return { success: true };
 }
 
@@ -48,7 +48,7 @@ export async function createLogsBulk(logs: any[]) {
 
     if (error) throw new Error(error.message);
 
-    revalidatePath("/daily-logs");
+    revalidatePath("/orders");
     return { success: true };
 }
 
@@ -73,7 +73,7 @@ export async function updateLog(id: number, formData: {
 
     if (error) throw new Error(error.message);
 
-    revalidatePath("/daily-logs");
+    revalidatePath("/orders");
     return { success: true };
 }
 
@@ -87,7 +87,7 @@ export async function deleteLog(id: number) {
 
     if (error) throw new Error(error.message);
 
-    revalidatePath("/daily-logs");
+    revalidatePath("/orders");
     return { success: true };
 }
 
@@ -101,7 +101,7 @@ export async function updateLogStatus(id: number, status: "ongoing" | "delivered
 
     if (error) throw new Error(error.message);
 
-    revalidatePath("/daily-logs");
+    revalidatePath("/orders");
     return { success: true };
 }
 
@@ -115,7 +115,7 @@ export async function deleteSession(sessionId: string) {
 
     if (error) throw new Error(error.message);
 
-    revalidatePath("/daily-logs");
+    revalidatePath("/orders");
     return { success: true };
 }
 
@@ -129,7 +129,7 @@ export async function updateSession(sessionId: string, address: string) {
 
     if (error) throw new Error(error.message);
 
-    revalidatePath("/daily-logs");
+    revalidatePath("/orders");
     return { success: true };
 }
 
@@ -143,6 +143,8 @@ export async function updateSessionStatus(sessionId: string, status: string) {
 
     if (error) throw new Error(error.message);
 
-    revalidatePath("/daily-logs");
+    revalidatePath("/orders");
     return { success: true };
 }
+
+

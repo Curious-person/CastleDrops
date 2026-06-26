@@ -5,15 +5,16 @@ import { useDebouncedCallback } from "use-debounce";
 import {
     PhilippinePeso, Plus, Search, Trash, Eye,
     CheckCircle2, XCircle, RotateCcw, Clock, PackageCheck, Package,
-    Edit, MapPin, Printer
+    Edit, MapPin, Printer, ChevronDown
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
 import { format } from "date-fns";
 
-import DataTable, { type Column } from "@/features/daily-logs/components/DataTable";
-import StatCard from "@/features/daily-logs/components/StatCard";
-import PrintableDailyLogs from "@/features/daily-logs/components/PrintableDailyLogs";
+import DataTable, { type Column } from "@/features/orders/components/DataTable";
+import StatCard from "@/features/orders/components/StatCard";
+import PrintableOrders from "@/features/orders/components/PrintableOrders";
+import PageContainer from "@/components/PageContainer";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -27,7 +28,7 @@ import { getCustomers, type Customer } from "@/app/actions/customers";
 
 type OrderStatus = "ongoing" | "delivered" | "cancelled";
 
-type DailyLog = {
+type Order = {
     id: number;
     log_date: string;
     container_type: string;
@@ -49,16 +50,17 @@ type DailyLog = {
 
 type SessionGroup = {
     sessionId: string;
+    customerName: string;
     address: string;
     date: string;
     status: string;
-    logs: DailyLog[];
+    logs: Order[];
     onDelete: (id: string) => void;
     onEdit: (id: string, address: string) => void;
     onStatusChange: (id: string, status: string) => void;
 };
 
-type NewLog = Omit<DailyLog, "id">;
+type NewLog = Omit<Order, "id">;
 
 // ─── Label / color maps ───────────────────────────────────────────────────────
 
@@ -160,7 +162,7 @@ function StatusModal({ open, onClose, onConfirm, isLoading, targetStatus, logNam
 
 // ─── Tally Modal ──────────────────────────────────────────────────────────────
 
-function TallyModal({ open, onClose, logs }: { open: boolean; onClose: () => void; logs: DailyLog[] }) {
+function TallyModal({ open, onClose, logs }: { open: boolean; onClose: () => void; logs: Order[] }) {
     if (!open) return null;
 
     // Filter out cancelled logs for tally
@@ -266,7 +268,7 @@ function TallyModal({ open, onClose, logs }: { open: boolean; onClose: () => voi
 
 // ─── Shared column builders ───────────────────────────────────────────────────
 
-function buildBaseColumns(): Column<DailyLog>[] {
+function buildBaseColumns(): Column<Order>[] {
     return [
         {
             title: "Date",
@@ -281,7 +283,7 @@ function buildBaseColumns(): Column<DailyLog>[] {
         {
             title: "Customer",
             key: "customer_name",
-            render: (value, item: DailyLog) => (
+            render: (value, item: Order) => (
                 <div className="flex flex-col">
                     <span className="font-medium text-sm text-gray-900">{String(value) || "—"}</span>
                     {item.customer_address && (
@@ -317,7 +319,7 @@ function buildBaseColumns(): Column<DailyLog>[] {
         {
             title: "Total",
             key: "total_price",
-            render: (value, item: DailyLog) => {
+            render: (value, item: Order) => {
                 const total = item.total_price ?? 0;
                 return (
                     <span className="font-bold text-sm text-[#2FA9D9]">
@@ -346,7 +348,7 @@ function buildBaseColumns(): Column<DailyLog>[] {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 
-export default function DailyLogsClient({ initialData }: { initialData: DailyLog[] }) {
+export default function OrdersClient({ initialData }: { initialData: Order[] }) {
     const router = useRouter();
     const pathname = usePathname();
     const searchParams = useSearchParams();
@@ -359,7 +361,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
     const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
     const [isDeleteSessionModalOpen, setIsDeleteSessionModalOpen] = useState(false);
     const [isEditSessionModalOpen, setIsEditSessionModalOpen] = useState(false);
-    const [selectedLog, setSelectedLog] = useState<DailyLog | null>(null);
+    const [selectedLog, setSelectedLog] = useState<Order | null>(null);
     const [selectedSessionId, setSelectedSessionId] = useState<string | null>(null);
     const [editSessionAddress, setEditSessionAddress] = useState("");
     const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null);
@@ -377,6 +379,8 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
     const [customerSearch, setCustomerSearch] = useState("");
+    const [isManualInput, setIsManualInput] = useState(false);
+    const [isCustomerListCollapsed, setIsCustomerListCollapsed] = useState(false);
     const [sessionData, setSessionData] = useState({
         id: "",
         address: "",
@@ -441,6 +445,8 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
             customerId: ""
         });
         setCustomerSearch("");
+        setIsManualInput(false);
+        setIsCustomerListCollapsed(false);
         setIsSessionModalOpen(true);
     };
 
@@ -453,7 +459,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
             customerName: sessionData.customerName,
             customerId: sessionData.customerId
         });
-        router.push(`/daily-logs/new?${params.toString()}`);
+        router.push(`/orders/new?${params.toString()}`);
     };
 
     const handleFinishSession = async () => {
@@ -480,6 +486,21 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
         setIsSessionModalOpen(false);
     };
 
+    const handleCancelSession = () => {
+        if (stagedLogs.length === 0) {
+            setSessionData({
+                id: "",
+                address: "",
+                customerName: "",
+                customerId: ""
+            });
+            setCustomerSearch("");
+            setIsManualInput(false);
+            setIsCustomerListCollapsed(false);
+        }
+        setIsSessionModalOpen(false);
+    };
+
     const handleRemoveStagedLog = (index: number) => {
         const updated = [...stagedLogs];
         updated.splice(index, 1);
@@ -490,11 +511,11 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
 
     // ── Handlers ─────────────────────────────────────────────────────────────
 
-    const handleOpenView = (log: DailyLog) => { setSelectedLog(log); setIsViewModalOpen(true); };
+    const handleOpenView = (log: Order) => { setSelectedLog(log); setIsViewModalOpen(true); };
 
-    const handleOpenDelete = (log: DailyLog) => { setSelectedLog(log); setIsDeleteModalOpen(true); };
+    const handleOpenDelete = (log: Order) => { setSelectedLog(log); setIsDeleteModalOpen(true); };
 
-    const handleOpenStatusChange = (log: DailyLog, newStatus: OrderStatus) => {
+    const handleOpenStatusChange = (log: Order, newStatus: OrderStatus) => {
         setSelectedLog(log);
         setPendingStatus(newStatus);
         setIsStatusModalOpen(true);
@@ -563,7 +584,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
     // ── Grouping Logic ───────────────────────────────────────────────────────
 
 
-    const groupLogsBySession = (logs: DailyLog[]): SessionGroup[] => {
+    const groupLogsBySession = (logs: Order[]): SessionGroup[] => {
         const groups: Record<string, SessionGroup> = {};
 
         logs.forEach(log => {
@@ -571,6 +592,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
             if (!groups[sid]) {
                 groups[sid] = {
                     sessionId: sid,
+                    customerName: log.customer_name || "Custom Customer",
                     address: log.session_address || log.customer_address || "No Address",
                     date: log.log_date,
                     status: log.session_status || "ongoing", // Default to first log's status or ongoing
@@ -606,12 +628,12 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
 
     // ── Column sets for each tab ─────────────────────────────────────────────
 
-    const ongoingColumns: Column<DailyLog>[] = [
+    const ongoingColumns: Column<Order>[] = [
         ...buildBaseColumns(),
         {
             title: "Actions",
             key: "id",
-            render: (_v, item: DailyLog) => (
+            render: (_v, item: Order) => (
                 <div className="flex gap-1.5">
                     <Button
                         variant="outline" size="sm"
@@ -648,12 +670,12 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
         },
     ];
 
-    const deliveredColumns: Column<DailyLog>[] = [
+    const deliveredColumns: Column<Order>[] = [
         ...buildBaseColumns(),
         {
             title: "Actions",
             key: "id",
-            render: (_v, item: DailyLog) => (
+            render: (_v, item: Order) => (
                 <div className="flex gap-1.5">
                     <Button variant="outline" size="sm" onClick={() => handleOpenView(item)} title="View details">
                         <Eye className="w-4 h-4" />
@@ -674,12 +696,12 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
         },
     ];
 
-    const cancelledColumns: Column<DailyLog>[] = [
+    const cancelledColumns: Column<Order>[] = [
         ...buildBaseColumns(),
         {
             title: "Actions",
             key: "id",
-            render: (_v, item: DailyLog) => (
+            render: (_v, item: Order) => (
                 <div className="flex gap-1.5">
                     <Button variant="outline" size="sm" onClick={() => handleOpenView(item)} title="View details">
                         <Eye className="w-4 h-4" />
@@ -706,9 +728,9 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
     const now = new Date();
     const filteredStatsLogs = initialData.filter((log) => {
         if (log.status === "cancelled") return false;
-        
+
         const logDate = new Date(log.log_date);
-        
+
         if (statTab === "today") {
             return logDate.toDateString() === now.toDateString();
         } else if (statTab === "week") {
@@ -723,7 +745,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
         return true;
     });
 
-    const calculateLogPrice = (log: DailyLog) => {
+    const calculateLogPrice = (log: Order) => {
         if (log.total_price) return log.total_price;
         // Fallback calculation for older logs
         const quantity = log.quantity ?? 1;
@@ -739,29 +761,8 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
 
     return (
         <>
-            <div className="p-4 sm:p-6 lg:p-8 print:hidden">
-
-                {/* ── Stat Cards ── */}
-                <div className="mb-4">
-                    <div className="p-4 sm:p-6 rounded-xl bg-white w-full">
-                        <Tabs defaultValue="today" value={statTab} onValueChange={setStatTab} className="w-full">
-                            <TabsList className="w-full sm:w-auto grid grid-cols-4">
-                                <TabsTrigger value="today">Today</TabsTrigger>
-                                <TabsTrigger value="week">Week</TabsTrigger>
-                                <TabsTrigger value="month">Month</TabsTrigger>
-                                <TabsTrigger value="year">Year</TabsTrigger>
-                            </TabsList>
-                            <div className="flex flex-col sm:flex-row gap-4 mt-4">
-                                <StatCard title="Total Revenue" value={`₱${totalRevenue.toLocaleString()}`} change="Active" positive={true} icon={PhilippinePeso} />
-                                <StatCard title="Total Orders" value={String(totalOrders)} change="Active" positive={true} icon={Package} />
-                            </div>
-                        </Tabs>
-                    </div>
-                </div>
-
+            <PageContainer title="Orders">
                 {/* ── Table Panel ── */}
-                <div className="rounded-xl bg-white overflow-hidden">
-
                     {/* Toolbar */}
                     <div className="p-4 sm:p-6 flex flex-col sm:flex-row gap-3 border-b border-gray-100">
                         <div className="flex items-center relative max-w-md w-full">
@@ -840,7 +841,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                                                         </div>
                                                         <div>
                                                             <div className="flex items-center gap-2">
-                                                                <span className="font-bold text-sm text-[#2FA9D9]">{group.sessionId}</span>
+                                                                <span className="font-bold text-sm text-[#2FA9D9]">{group.customerName}</span>
                                                             </div>
                                                             <div className="text-sm text-gray-500 max-w-[300px] truncate mt-1 flex items-center gap-1.5">
                                                                 <MapPin className="w-3.5 h-3.5 text-gray-400" />
@@ -925,7 +926,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                             </div>
                         )}
                     </div>
-                </div>
+                </PageContainer>
 
                 {/* ── View Modal ── */}
                 <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
@@ -1034,10 +1035,9 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                     targetStatus={pendingStatus}
                     logName={selectedLog?.customer_name ?? "this order"}
                 />
-            </div>
 
             {/* ── New Session Modal ── */}
-            <Dialog open={isSessionModalOpen} onOpenChange={setIsSessionModalOpen}>
+            <Dialog open={isSessionModalOpen} onOpenChange={(open) => { if (!open) handleCancelSession(); }}>
                 <DialogContent className="sm:max-w-md max-w-[95vw] overflow-hidden flex flex-col max-h-[90vh] p-0">
                     <DialogHeader className="p-6 pb-0">
                         <DialogTitle className="text-lg font-bold">
@@ -1050,10 +1050,10 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                         <div className="space-y-3">
                             <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Session Context</label>
                             <div className="p-4 bg-gray-50 border rounded-2xl space-y-2">
-                                <div className="flex justify-between items-center bg-white p-2 rounded-lg border border-gray-100">
-                                    <span className="text-[10px] text-gray-400 font-mono">ID: {sessionData.id}</span>
+                                <div className="flex justify-between items-center py-1 font-sans">
+                                    <span className="text-sm font-bold text-gray-900 tracking-tight">Session ID: {sessionData.id}</span>
                                     {stagedLogs.length > 0 && (
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 font-bold">
+                                        <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-sky-50 text-[#2FA9D9] border border-sky-100 font-bold">
                                             {stagedLogs.length} ITEM{stagedLogs.length > 1 ? "S" : ""} STAGED
                                         </span>
                                     )}
@@ -1118,44 +1118,124 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                         )}
 
                         {/* Initial Customer Selection (only if no items staged yet) */}
-                        {stagedLogs.length === 0 && !sessionData.customerName && (
-                            <div className="space-y-3">
-                                <label className="text-sm font-medium text-gray-700">Select Customer / Location</label>
-                                <div className="relative">
-                                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                    <Input
-                                        placeholder="Search by customer name or address…"
-                                        className="pl-9 h-11"
-                                        value={customerSearch}
-                                        onChange={(e) => setCustomerSearch(e.target.value)}
-                                    />
+                        {stagedLogs.length === 0 && !sessionData.customerName && !isManualInput && (
+                            <div className="space-y-3 font-sans animate-in fade-in duration-200">
+                                <button
+                                    type="button"
+                                    onClick={() => setIsCustomerListCollapsed(!isCustomerListCollapsed)}
+                                    className="flex items-center justify-between w-full text-left py-1 hover:opacity-85 transition-opacity"
+                                >
+                                    <span className="text-sm font-semibold text-gray-700">Select Customer / Location</span>
+                                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isCustomerListCollapsed ? "-rotate-90" : "rotate-0"}`} />
+                                </button>
+
+                                {!isCustomerListCollapsed && (
+                                    <div className="space-y-3 animate-in fade-in duration-200">
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                            <Input
+                                                placeholder="Search by customer name or address…"
+                                                className="pl-9 h-11"
+                                                value={customerSearch}
+                                                onChange={(e) => setCustomerSearch(e.target.value)}
+                                            />
+                                        </div>
+
+                                        <div className="max-h-[200px] overflow-y-auto space-y-1 pr-1 border rounded-xl p-1 bg-gray-50/50">
+                                            {isLoadingCustomers ? (
+                                                <div className="py-8 text-center text-sm text-gray-400">Loading customers…</div>
+                                            ) : filteredCustomers.length === 0 ? (
+                                                <div className="py-8 text-center text-sm text-gray-400 italic">No customers found</div>
+                                            ) : (
+                                                filteredCustomers.map((c) => (
+                                                    <button
+                                                        key={c.id}
+                                                        onClick={() => setSessionData(p => ({
+                                                            ...p,
+                                                            customerName: c.name,
+                                                            customerId: c.id,
+                                                            address: c.address ?? "No Address Provided"
+                                                        }))}
+                                                        className="w-full p-3 rounded-lg text-left hover:bg-[#2FA9D9]/5 hover:border-[#2FA9D9]/20 border border-transparent transition-all group"
+                                                    >
+                                                        <div className="font-semibold text-sm group-hover:text-[#2FA9D9]">{c.name}</div>
+                                                        <div className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5 truncate">
+                                                            <MapPin className="w-2.5 h-2.5" />
+                                                            {c.address ?? "No Address"}
+                                                        </div>
+                                                    </button>
+                                                ))
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                <div className="flex justify-between items-center text-xs font-semibold text-gray-400 uppercase tracking-wider py-1 font-sans">
+                                    <span className="w-full border-t border-gray-100 mr-2"></span>
+                                    <span className="shrink-0 text-[10px]">Or</span>
+                                    <span className="w-full border-t border-gray-100 ml-2"></span>
                                 </div>
 
-                                <div className="max-h-[200px] overflow-y-auto space-y-1 pr-1 border rounded-xl p-1 bg-gray-50/50">
-                                    {isLoadingCustomers ? (
-                                        <div className="py-8 text-center text-sm text-gray-400">Loading customers…</div>
-                                    ) : filteredCustomers.length === 0 ? (
-                                        <div className="py-8 text-center text-sm text-gray-400 italic">No customers found</div>
-                                    ) : (
-                                        filteredCustomers.map((c) => (
-                                            <button
-                                                key={c.id}
-                                                onClick={() => setSessionData(p => ({
-                                                    ...p,
-                                                    customerName: c.name,
-                                                    customerId: c.id,
-                                                    address: c.address ?? "No Address Provided"
-                                                }))}
-                                                className="w-full p-3 rounded-lg text-left hover:bg-[#2FA9D9]/5 hover:border-[#2FA9D9]/20 border border-transparent transition-all group"
-                                            >
-                                                <div className="font-semibold text-sm group-hover:text-[#2FA9D9]">{c.name}</div>
-                                                <div className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5 truncate">
-                                                    <MapPin className="w-2.5 h-2.5" />
-                                                    {c.address ?? "No Address"}
-                                                </div>
-                                            </button>
-                                        ))
-                                    )}
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsManualInput(true);
+                                        setSessionData(p => ({
+                                            ...p,
+                                            customerName: "",
+                                            customerId: "",
+                                            address: ""
+                                        }));
+                                    }}
+                                    className="w-full p-3 rounded-xl border border-dashed border-[#2FA9D9]/30 hover:border-[#2FA9D9] hover:bg-[#2FA9D9]/5 text-[#2FA9D9] transition-all flex items-center justify-center gap-2 group text-xs font-semibold font-sans"
+                                >
+                                    <Plus className="w-3.5 h-3.5 group-hover:scale-110 transition-transform text-[#2FA9D9]" />
+                                    Input Custom Name & Address
+                                </button>
+                            </div>
+                        )}
+
+                        {/* Custom Customer Manual Input Form */}
+                        {stagedLogs.length === 0 && isManualInput && (
+                            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200 font-sans">
+                                <div className="flex items-center justify-between">
+                                    <label className="text-sm font-medium text-gray-700">Custom Customer Details</label>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setIsManualInput(false);
+                                            setSessionData(p => ({
+                                                ...p,
+                                                customerName: "",
+                                                customerId: "",
+                                                address: ""
+                                            }));
+                                        }}
+                                        className="text-xs text-[#2FA9D9] hover:underline font-semibold"
+                                    >
+                                        Back to Search
+                                    </button>
+                                </div>
+
+                                <div className="space-y-4">
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer Name</label>
+                                        <Input
+                                            placeholder="Enter customer name..."
+                                            value={sessionData.customerName}
+                                            onChange={(e) => setSessionData(p => ({ ...p, customerName: e.target.value }))}
+                                            className="h-11"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Session Address</label>
+                                        <Input
+                                            placeholder="Enter customer address..."
+                                            value={sessionData.address}
+                                            onChange={(e) => setSessionData(p => ({ ...p, address: e.target.value }))}
+                                            className="h-11"
+                                        />
+                                    </div>
                                 </div>
                             </div>
                         )}
@@ -1211,7 +1291,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                                     <Plus className="w-4 h-4 mr-1.5" />
                                     Start Session & Add Log
                                 </Button>
-                                <Button variant="outline" onClick={() => setIsSessionModalOpen(false)} className="w-full h-11">
+                                <Button variant="outline" onClick={handleCancelSession} className="w-full h-11">
                                     Cancel
                                 </Button>
                             </>
@@ -1311,14 +1391,14 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                                 )}
                             </div>
                             {selectedSessionForDetails && (
-                                <Button 
-                                    variant="outline" 
-                                    size="sm" 
+                                <Button
+                                    variant="outline"
+                                    size="sm"
                                     className="w-full sm:w-auto border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5 shadow-sm"
                                     onClick={() => {
                                         const { sessionId, address, logs } = selectedSessionForDetails;
                                         const today = format(new Date(), "MMMM d, yyyy");
-                                        
+
                                         // Generate HTML content for Word
                                         const htmlContent = `
                                             <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
@@ -1368,11 +1448,11 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                                                     </thead>
                                                     <tbody>
                                                         ${logs.map(log => {
-                                                            const quantity = log.quantity ?? 1;
-                                                            const wType = log.water_type || "mineral";
-                                                            const cType = log.container_type || "round";
-                                                            const price = log.total_price ?? (quantity * 5 * (wType === "alkaline" ? 50 : 35));
-                                                            return `
+                                            const quantity = log.quantity ?? 1;
+                                            const wType = log.water_type || "mineral";
+                                            const cType = log.container_type || "round";
+                                            const price = log.total_price ?? (quantity * 5 * (wType === "alkaline" ? 50 : 35));
+                                            return `
                                                                 <tr>
                                                                     <td>${format(new Date(log.log_date), "MMM d, yyyy")}</td>
                                                                     <td>${log.customer_name}</td>
@@ -1382,7 +1462,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                                                                     <td>${log.status || "ongoing"}</td>
                                                                 </tr>
                                                             `;
-                                                        }).join('')}
+                                        }).join('')}
                                                     </tbody>
                                                 </table>
 
@@ -1396,7 +1476,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                                         const blob = new Blob(['\ufeff', htmlContent], {
                                             type: 'application/msword'
                                         });
-                                        
+
                                         const url = URL.createObjectURL(blob);
                                         const link = document.createElement('a');
                                         link.href = url;
@@ -1555,7 +1635,7 @@ export default function DailyLogsClient({ initialData }: { initialData: DailyLog
                 logs={selectedSessionForTally?.logs ?? []}
             />
 
-            <PrintableDailyLogs logs={initialData} />
+            <PrintableOrders logs={initialData} />
         </>
     );
 }
@@ -1576,3 +1656,5 @@ function StatusBadge({ status }: { status: string }) {
         </span>
     );
 }
+
+
