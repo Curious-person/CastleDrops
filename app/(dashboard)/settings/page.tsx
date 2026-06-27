@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
   User, Store, DollarSign, Shield, LogOut, Trash2, CheckCircle2,
-  AlertTriangle, Save, RefreshCw, KeyRound, Bell, Phone, MapPin,
+  AlertTriangle, Save, RefreshCw, KeyRound, Bell, Phone,
   Clock, ShieldAlert, BadgeCheck, FileCheck2
 } from "lucide-react";
 import PageContainer from "@/components/PageContainer";

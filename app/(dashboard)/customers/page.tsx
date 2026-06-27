@@ -3,7 +3,7 @@
 import { useState } from "react";
 import {
     Users, Plus, Search, Trash2, Edit, Eye, Phone, MapPin, Flag,
-    Info, ShoppingBag, Droplet, Waves, SlidersHorizontal, FileText, CheckCircle2
+    ShoppingBag, Droplet, Waves, SlidersHorizontal, FileText
 } from "lucide-react";
 import PageContainer from "@/components/PageContainer";
 import { Button } from "@/components/ui/button";
@@ -527,7 +527,7 @@ export default function Customers() {
                         <div className="w-full sm:w-[200px]">
                             <Select
                                 value={prefFilter}
-                                onValueChange={(val) => setPrefFilter(val as any)}
+                                onValueChange={(val) => setPrefFilter(val as "all" | WaterPreference)}
                             >
                                 <SelectTrigger className="w-full">
                                     <div className="flex items-center gap-2">
@@ -575,7 +575,7 @@ export default function Customers() {
                                 {editingCustomer ? "Edit Customer Details" : "Add New Customer"}
                             </DialogTitle>
                             <DialogDescription>
-                                Input client contact and address information. These fields map to the system's customer database schema.
+                                Input client contact and address information. These fields map to the system&apos;s customer database schema.
                             </DialogDescription>
                         </DialogHeader>
 

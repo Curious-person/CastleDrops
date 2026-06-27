@@ -39,7 +39,7 @@ export async function login(formData: { email: string; password: string }) {
                 httpOnly: true
             })
             return { success: true }
-        } catch (e) {
+        } catch {
             return { error: "Failed to store session in cookies." }
         }
     }
@@ -53,7 +53,7 @@ export async function logout() {
         cookieStore.delete("sb-access-token")
         cookieStore.delete("sb-refresh-token")
         return { success: true }
-    } catch (e) {
+    } catch {
         return { error: "Failed to delete session cookies." }
     }
 }

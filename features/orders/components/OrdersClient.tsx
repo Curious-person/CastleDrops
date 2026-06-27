@@ -20,7 +20,6 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { deleteLog, updateLogStatus, deleteSession, updateSession, createLogsBulk, updateSessionStatus } from "@/app/actions/logs";
 import { getCustomers, type Customer } from "@/app/actions/customers";
 
@@ -374,7 +373,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
     const [stagedLogs, setStagedLogs] = useState<NewLog[]>([]);
     const [isSavingSession, setIsSavingSession] = useState(false);
-    const [statTab, setStatTab] = useState("today");
+    const statTab = "today";
     const [sessionListTab, setSessionListTab] = useState("ongoing");
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);

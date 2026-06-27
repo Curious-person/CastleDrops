@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 
-export async function createLog(formData: {
+export interface LogInput {
     log_date: string;
     container_type: string | null;
     water_type: string | null;
@@ -19,10 +19,16 @@ export async function createLog(formData: {
     status?: string | null;
     session_id?: string | null;
     session_address?: string | null;
-}) {
+}
+
+export async function createLog(formData: LogInput) {
     const supabase = await createClient();
 
-    const { price_per_gallon, total_gallons, quantity, total_price, ...rest } = formData;
+    const rest = { ...formData };
+    delete rest.price_per_gallon;
+    delete rest.total_gallons;
+    delete rest.quantity;
+    delete rest.total_price;
 
     const { error } = await supabase
         .from("orders")
@@ -34,11 +40,15 @@ export async function createLog(formData: {
     return { success: true };
 }
 
-export async function createLogsBulk(logs: any[]) {
+export async function createLogsBulk(logs: LogInput[]) {
     const supabase = await createClient();
 
     const sanitizedLogs = logs.map(l => {
-        const { price_per_gallon, total_gallons, quantity, total_price, ...rest } = l;
+        const rest = { ...l };
+        delete rest.price_per_gallon;
+        delete rest.total_gallons;
+        delete rest.quantity;
+        delete rest.total_price;
         return { ...rest, status: l.status ?? "ongoing" };
     });
 

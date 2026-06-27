@@ -15,7 +15,7 @@ export async function createClient() {
     try {
         const cookieStore = await cookies()
         token = cookieStore.get("sb-access-token")?.value
-    } catch (e) {
+    } catch {
         // cookies() might throw during prerendering or static compilation
     }
 

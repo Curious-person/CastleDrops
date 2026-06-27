@@ -11,6 +11,7 @@ import {
 export type Column<T> = {
     title: string
     key: keyof T | string
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     render?: (value: any, item: T) => ReactNode
     className?: string
 }
@@ -71,7 +72,8 @@ export default function DataTable<T>({
                                     className={onRowClick ? "cursor-pointer hover:bg-gray-50/50 transition-colors" : ""}
                                 >
                                     {columns.map((column, idx) => {
-                                        const cellValue = column.key in (item as any) ? (item as any)[column.key] : undefined;
+                                        const itemRecord = item as Record<string, unknown>;
+                                        const cellValue = column.key in itemRecord ? itemRecord[column.key as string] : undefined;
                                         return (
                                             <TableCell key={String(column.key) || idx} className={column.className}>
                                                 {column.render

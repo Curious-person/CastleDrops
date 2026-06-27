@@ -3,9 +3,9 @@
 import { useState } from "react";
 import { format } from "date-fns";
 import {
-    Droplets, Plus, Search, Trash, Edit,
-    AlertTriangle, Check, CheckCircle2, Waves, Droplet,
-    TrendingDown, Info, Calendar, Filter, Trash2
+    Droplets, Plus, Search, Edit,
+    AlertTriangle, Waves, Droplet,
+    Info, Calendar, Filter, Trash2
 } from "lucide-react";
 import PageContainer from "@/components/PageContainer";
 import { Button } from "@/components/ui/button";
@@ -351,7 +351,7 @@ export default function WaterLogs() {
                         <div className="w-full sm:w-[180px]">
                             <Select
                                 value={typeFilter}
-                                onValueChange={(val) => setTypeFilter(val as any)}
+                                onValueChange={(val) => setTypeFilter(val as "all" | WaterType)}
                             >
                                 <SelectTrigger className="w-full">
                                     <div className="flex items-center gap-2">
