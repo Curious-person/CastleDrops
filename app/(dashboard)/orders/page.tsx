@@ -1,10 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase/server";
 import OrdersClient from "@/features/orders/components/OrdersClient";
 async function fetchOrders(query?: string, sort?: string) {
-    const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!
-    );
+    const supabase = await createClient();
 
     let dbQuery = supabase.from("orders").select("*");
 

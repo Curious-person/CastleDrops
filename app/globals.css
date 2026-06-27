@@ -136,3 +136,22 @@
     @apply bg-background text-foreground;
   }
 }
+
+@layer utilities {
+  .animate-indeterminate {
+    animation: indeterminate 1.5s infinite linear;
+    transform-origin: 0% 50%;
+  }
+
+  @keyframes indeterminate {
+    0% {
+      transform: translateX(-100%) scaleX(0.2);
+    }
+    50% {
+      transform: translateX(0) scaleX(0.5);
+    }
+    100% {
+      transform: translateX(200%) scaleX(0.2);
+    }
+  }
+}
