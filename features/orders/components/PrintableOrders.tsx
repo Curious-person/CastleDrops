@@ -1,6 +1,6 @@
 import { format } from "date-fns";
 
-type DailyLog = {
+type Order = {
     id: number;
     log_date: string;
     container_type: string;
@@ -23,11 +23,11 @@ const FULFILLMENT_LABELS: Record<string, string> = {
     pickup:   "Pick-up",
 };
 
-type PrintableDailyLogsProps = {
-    logs: DailyLog[];
+type PrintableOrdersProps = {
+    logs: Order[];
 };
 
-export default function PrintableDailyLogs({ logs }: PrintableDailyLogsProps) {
+export default function PrintableOrders({ logs }: PrintableOrdersProps) {
     return (
         <section className="hidden print:block p-8 text-black">
             <div className="mb-6 border-b pb-4">
@@ -65,3 +65,5 @@ export default function PrintableDailyLogs({ logs }: PrintableDailyLogsProps) {
         </section>
     );
 }
+
+

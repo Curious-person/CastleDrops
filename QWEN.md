@@ -62,7 +62,7 @@ my-next-app/
 
 ### Prerequisites
 - Node.js 20+
-- Supabase project with `daily_logs` table
+- Supabase project with `orders` table
 
 ### Environment Variables
 Create a `.env.local` file:
@@ -90,7 +90,7 @@ npm run lint
 
 ## Database Schema
 
-The application expects a Supabase table `daily_logs` with the following structure:
+The application expects a Supabase table `orders` with the following structure:
 
 | Column | Type | Description |
 |--------|------|-------------|
@@ -132,3 +132,4 @@ The application expects a Supabase table `daily_logs` with the following structu
 4. **Print Support**: `PrintableDailyLogs` component for report generation (hidden via `print:hidden` classes)
 5. **Date Handling**: `date-fns` for formatting; client-side date initialization to prevent hydration mismatches
 6. **Form Validation**: Cross-field validation ensures closing reading ≥ opening reading
+
