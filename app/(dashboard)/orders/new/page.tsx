@@ -38,73 +38,73 @@ interface FormData {
 
 const CONTAINER_GALLONS: Record<ContainerType, number> = {
     round: 5,
-    flat:  5,
+    flat: 5,
 };
 
 const WATER_PRICE_PER_GALLON: Record<WaterType, number> = {
     alkaline: 50,
-    mineral:  35,
+    mineral: 35,
 };
 
 // ─── Step Config ──────────────────────────────────────────────────────────────
 
 const STEPS = [
-    { id: 1, title: "Container Type",  subtitle: "What type of container?",      icon: Package    },
-    { id: 2, title: "Water Type",      subtitle: "What type of water?",           icon: Droplets   },
-    { id: 3, title: "Payment Method",  subtitle: "How will they pay?",            icon: CreditCard },
-    { id: 4, title: "Fulfillment",     subtitle: "Delivery or pick-up?",          icon: Truck      },
-    { id: 5, title: "Order Status",    subtitle: "Set the initial order status",  icon: Flag       },
+    { id: 1, title: "Container Type", subtitle: "What type of container?", icon: Package },
+    { id: 2, title: "Water Type", subtitle: "What type of water?", icon: Droplets },
+    { id: 3, title: "Payment Method", subtitle: "How will they pay?", icon: CreditCard },
+    { id: 4, title: "Fulfillment", subtitle: "Delivery or pick-up?", icon: Truck },
+    { id: 5, title: "Order Status", subtitle: "Set the initial order status", icon: Flag },
 ];
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
-    gcash:         "GCash",
-    cash:          "Cash",
+    gcash: "GCash",
+    cash: "Cash",
     bank_transfer: "Bank Transfer",
-    credit:        "Credit / Card",
+    credit: "Credit / Card",
 };
 
 const CONTAINER_LABELS: Record<ContainerType, string> = {
     round: "Round",
-    flat:  "Flat",
+    flat: "Flat",
 };
 
 const WATER_LABELS: Record<WaterType, string> = {
     alkaline: "Alkaline",
-    mineral:  "Mineral",
+    mineral: "Mineral",
 };
 
 const FULFILLMENT_LABELS: Record<FulfillmentType, string> = {
     delivery: "Delivery",
-    pickup:   "Pick-up",
+    pickup: "Pick-up",
 };
 
 const STATUS_CONFIG: Record<OrderStatus, { icon: React.ReactNode; label: string; desc: string; selectedBorder: string; selectedBg: string; selectedText: string; checkBg: string }> = {
     ongoing: {
-        icon:          <Clock className="w-6 h-6 text-[#2FA9D9]" />,
-        label:         "Ongoing",
-        desc:          "Order is active and in progress",
+        icon: <Clock className="w-6 h-6 text-[#2FA9D9]" />,
+        label: "Ongoing",
+        desc: "Order is active and in progress",
         selectedBorder: "border-[#2FA9D9]",
-        selectedBg:    "from-[#2FA9D9]/8 to-[#76D4F9]/5",
-        selectedText:  "text-[#2FA9D9]",
-        checkBg:       "bg-[#2FA9D9]",
+        selectedBg: "from-[#2FA9D9]/8 to-[#76D4F9]/5",
+        selectedText: "text-[#2FA9D9]",
+        checkBg: "bg-[#2FA9D9]",
     },
     delivered: {
-        icon:          <CheckCircle2 className="w-6 h-6 text-emerald-600" />,
-        label:         "Delivered",
-        desc:          "Order has already been delivered",
+        icon: <CheckCircle2 className="w-6 h-6 text-emerald-600" />,
+        label: "Delivered",
+        desc: "Order has already been delivered",
         selectedBorder: "border-emerald-500",
-        selectedBg:    "from-emerald-50 to-emerald-50/50",
-        selectedText:  "text-emerald-600",
-        checkBg:       "bg-emerald-500",
+        selectedBg: "from-emerald-50 to-emerald-50/50",
+        selectedText: "text-emerald-600",
+        checkBg: "bg-emerald-500",
     },
     cancelled: {
-        icon:          <XCircle className="w-6 h-6 text-rose-600" />,
-        label:         "Cancelled",
-        desc:          "Order was cancelled before fulfillment",
+        icon: <XCircle className="w-6 h-6 text-rose-600" />,
+        label: "Cancelled",
+        desc: "Order was cancelled before fulfillment",
         selectedBorder: "border-rose-500",
-        selectedBg:    "from-rose-50 to-rose-50/50",
-        selectedText:  "text-rose-600",
-        checkBg:       "bg-rose-500",
+        selectedBg: "from-rose-50 to-rose-50/50",
+        selectedText: "text-rose-600",
+        checkBg: "bg-rose-500",
     },
 };
 
@@ -172,16 +172,16 @@ function MultiStepForm() {
     const customerId = searchParams.get("customerId");
 
     const [formData, setFormData] = useState<FormData>({
-        container_type:   null,
-        quantity:         1,
-        water_quantity:   1,
-        water_type:       null,
-        customer_id:      customerId || null,
-        customer_name:    customerName || "",
+        container_type: null,
+        quantity: 1,
+        water_quantity: 1,
+        water_type: null,
+        customer_id: customerId || null,
+        customer_name: customerName || "",
         customer_address: sessionAddress || "",
-        payment_method:   null,
+        payment_method: null,
         fulfillment_type: null,
-        initial_status:   "ongoing",
+        initial_status: "ongoing",
     });
 
 
@@ -224,20 +224,20 @@ function MultiStepForm() {
 
             const newLog = {
                 log_date,
-                container_type:   formData.container_type,
-                quantity:         formData.quantity * formData.water_quantity,
-                water_type:       formData.water_type,
+                container_type: formData.container_type,
+                quantity: formData.quantity * formData.water_quantity,
+                water_type: formData.water_type,
                 price_per_gallon: formData.water_type ? WATER_PRICE_PER_GALLON[formData.water_type] : null,
-                total_gallons:    formData.container_type ? (formData.quantity * formData.water_quantity) * CONTAINER_GALLONS[formData.container_type] : null,
-                total_price:      calculateTotalPrice(),
-                customer_id:      formData.customer_id,
-                customer_name:    formData.customer_name,
+                total_gallons: formData.container_type ? (formData.quantity * formData.water_quantity) * CONTAINER_GALLONS[formData.container_type] : null,
+                total_price: calculateTotalPrice(),
+                customer_id: formData.customer_id,
+                customer_name: formData.customer_name,
                 customer_address: formData.customer_address,
-                payment_method:   formData.payment_method,
+                payment_method: formData.payment_method,
                 fulfillment_type: formData.fulfillment_type,
-                status:           formData.initial_status,
-                session_id:       sessionId,
-                session_address:  sessionAddress,
+                status: formData.initial_status,
+                session_id: sessionId,
+                session_address: sessionAddress,
             };
 
             // Stage in sessionStorage
@@ -253,7 +253,7 @@ function MultiStepForm() {
                 customerName: customerName || "",
                 customerId: customerId || ""
             });
-            
+
             router.push(`/orders?${params.toString()}`);
             router.refresh();
         } catch (err) {
@@ -267,13 +267,13 @@ function MultiStepForm() {
     const StepIcon = STEPS[currentStep - 1].icon;
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-[#2FA9D9] via-[#1e8fbd] to-[#0d6a96] p-4 sm:p-6">
+        <div className="min-h-full w-full flex-1 p-4 sm:p-6">
             {/* Back button */}
             <div className="max-w-lg mx-auto mb-4">
                 <Button
                     variant="ghost"
                     onClick={() => router.back()}
-                    className="text-white/80 hover:text-white hover:bg-white/15 gap-2 -ml-2"
+                    className="text-[#2FA9D9] hover:text-[#2195c0] hover:bg-[#2FA9D9]/10 gap-2 -ml-2 font-semibold"
                 >
                     <ArrowLeft className="w-4 h-4" />
                     Back to Logs
@@ -287,16 +287,16 @@ function MultiStepForm() {
                     <div className="flex items-center justify-between mb-4">
                         {STEPS.map((step, index) => {
                             const Icon = step.icon;
-                            const isDone    = step.id < currentStep;
+                            const isDone = step.id < currentStep;
                             const isCurrent = step.id === currentStep;
                             return (
                                 <div key={step.id} className="flex items-center flex-1">
                                     <div className="flex flex-col items-center">
                                         <div className={`
-                                            w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300
-                                            ${isDone    ? "bg-white text-[#2FA9D9] shadow-lg shadow-black/20"                     : ""}
-                                            ${isCurrent ? "bg-white text-[#2FA9D9] ring-4 ring-white/25 shadow-lg shadow-black/20" : ""}
-                                            ${!isDone && !isCurrent ? "bg-white/20 text-white/60"                                  : ""}
+                                            w-9 h-9 rounded-full flex items-center justify-center transition-all duration-300 border
+                                            ${isDone ? "bg-emerald-500 border-emerald-500 text-white shadow-md shadow-emerald-500/10" : ""}
+                                            ${isCurrent ? "bg-[#2FA9D9] border-[#2FA9D9] text-white ring-4 ring-[#2FA9D9]/25 shadow-md shadow-[#2FA9D9]/10" : ""}
+                                            ${!isDone && !isCurrent ? "bg-gray-100 border-gray-200 text-gray-400" : ""}
                                         `}>
                                             {isDone
                                                 ? <Check className="w-4 h-4 stroke-[3]" />
@@ -305,9 +305,9 @@ function MultiStepForm() {
                                         </div>
                                     </div>
                                     {index < STEPS.length - 1 && (
-                                        <div className="flex-1 h-0.5 mx-1.5 rounded-full overflow-hidden bg-white/20">
+                                        <div className="flex-1 h-0.5 mx-1.5 rounded-full overflow-hidden bg-gray-200">
                                             <div
-                                                className="h-full bg-white rounded-full transition-all duration-500"
+                                                className="h-full bg-[#2FA9D9] rounded-full transition-all duration-500"
                                                 style={{ width: step.id < currentStep ? "100%" : "0%" }}
                                             />
                                         </div>
@@ -318,20 +318,20 @@ function MultiStepForm() {
                     </div>
 
                     {/* Progress bar */}
-                    <div className="h-1.5 bg-white/20 rounded-full overflow-hidden">
+                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
                         <div
-                            className="h-full bg-white rounded-full transition-all duration-500 ease-out"
+                            className="h-full bg-[#2FA9D9] rounded-full transition-all duration-500 ease-out"
                             style={{ width: `${progress}%` }}
                         />
                     </div>
-                    <div className="flex justify-between mt-1.5 text-white/60 text-xs">
+                    <div className="flex justify-between mt-1.5 text-gray-500 text-xs font-semibold">
                         <span>{STEPS[currentStep - 1].title}</span>
                         <span>Step {currentStep} of {STEPS.length}</span>
                     </div>
                 </div>
 
                 {/* ── Card ── */}
-                <div className="bg-white rounded-3xl shadow-2xl shadow-black/20 overflow-hidden">
+                <div className="bg-white rounded-3xl shadow-xl shadow-sky-900/5 border border-sky-100/50 overflow-hidden">
                     {/* Card header accent */}
                     <div className="h-1 bg-gradient-to-r from-[#2FA9D9] to-[#76D4F9]" />
 
@@ -567,11 +567,11 @@ function MultiStepForm() {
                                         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                                             Order Summary
                                         </p>
-                                        <SummaryRow label="Container"   value={formData.container_type   ? CONTAINER_LABELS[formData.container_type]  : "—"} />
+                                        <SummaryRow label="Container" value={formData.container_type ? CONTAINER_LABELS[formData.container_type] : "—"} />
                                         {formData.container_type && (
                                             <SummaryRow label="Container Qty" value={`${formData.quantity} container${formData.quantity > 1 ? "s" : ""}`} />
                                         )}
-                                        <SummaryRow label="Water Type"  value={formData.water_type        ? WATER_LABELS[formData.water_type]           : "—"} />
+                                        <SummaryRow label="Water Type" value={formData.water_type ? WATER_LABELS[formData.water_type] : "—"} />
                                         {formData.water_type && (
                                             <SummaryRow label="Water Qty" value={`${formData.water_quantity} refill${formData.water_quantity > 1 ? "s" : ""}`} />
                                         )}
@@ -593,13 +593,13 @@ function MultiStepForm() {
                                             </div>
                                         )}
                                         <div className="border-t border-gray-200 mt-3 pt-3">
-                                            <SummaryRow label="Customer"    value={formData.customer_name     || "—"} />
+                                            <SummaryRow label="Customer" value={formData.customer_name || "—"} />
                                             {formData.customer_address && (
-                                                <SummaryRow label="Address"  value={formData.customer_address} />
+                                                <SummaryRow label="Address" value={formData.customer_address} />
                                             )}
-                                            <SummaryRow label="Payment"     value={formData.payment_method    ? PAYMENT_LABELS[formData.payment_method]     : "—"} />
-                                            <SummaryRow label="Fulfillment" value={formData.fulfillment_type  ? FULFILLMENT_LABELS[formData.fulfillment_type] : "—"} />
-                                            <SummaryRow label="Date"        value={format(new Date(), "MMMM d, yyyy")} />
+                                            <SummaryRow label="Payment" value={formData.payment_method ? PAYMENT_LABELS[formData.payment_method] : "—"} />
+                                            <SummaryRow label="Fulfillment" value={formData.fulfillment_type ? FULFILLMENT_LABELS[formData.fulfillment_type] : "—"} />
+                                            <SummaryRow label="Date" value={format(new Date(), "MMMM d, yyyy")} />
                                         </div>
                                     </div>
                                 </div>
@@ -632,10 +632,9 @@ function MultiStepForm() {
                                     disabled={isSubmitting}
                                     className={`
                                         gap-2 text-white shadow-lg px-6 disabled:opacity-40 disabled:shadow-none
-                                        ${
-                                            formData.initial_status === "delivered"
-                                                ? "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-emerald-500/30"
-                                                : formData.initial_status === "cancelled"
+                                        ${formData.initial_status === "delivered"
+                                            ? "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-emerald-500/30"
+                                            : formData.initial_status === "cancelled"
                                                 ? "bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 shadow-rose-500/30"
                                                 : "bg-gradient-to-r from-[#2FA9D9] to-[#1e8fbd] hover:from-[#2195c0] hover:to-[#1a7da8] shadow-[#2FA9D9]/30"
                                         }
@@ -670,8 +669,11 @@ function MultiStepForm() {
 export default function NewLogPage() {
     return (
         <Suspense fallback={
-            <div className="min-h-screen bg-gradient-to-br from-[#2FA9D9] to-[#0d6a96] flex items-center justify-center">
-                <div className="text-white text-sm">Loading…</div>
+            <div className="min-h-full w-full flex-1 flex items-center justify-center bg-[#e7f6fc]">
+                <div className="text-gray-500 text-sm font-semibold flex items-center gap-2">
+                    <span className="w-5 h-5 border-2 border-gray-300 border-t-[#2FA9D9] rounded-full animate-spin" />
+                    Loading…
+                </div>
             </div>
         }>
             <MultiStepForm />

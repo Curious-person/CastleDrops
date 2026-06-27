@@ -420,7 +420,8 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
 
     const filteredCustomers = customers.filter((c) =>
         c.name.toLowerCase().includes(customerSearch.toLowerCase()) ||
-        (c.address ?? "").toLowerCase().includes(customerSearch.toLowerCase())
+        (c.address ?? "").toLowerCase().includes(customerSearch.toLowerCase()) ||
+        (c.phone ?? "").toLowerCase().includes(customerSearch.toLowerCase())
     );
 
     const generateSessionId = () => {
@@ -721,6 +722,46 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                 </div>
             ),
         },
+    ];
+
+    const customerColumns: Column<Customer>[] = [
+        {
+            title: "",
+            key: "id",
+            className: "w-12 py-3 text-center",
+            render: (value) => (
+                <div className="flex justify-center">
+                    <div className={`w-5 h-5 rounded-full border flex items-center justify-center transition-colors ${sessionData.customerId === value ? 'bg-[#2FA9D9] border-[#2FA9D9] text-white' : 'border-gray-300'}`}>
+                        {sessionData.customerId === value && <CheckCircle2 className="w-3.5 h-3.5" />}
+                    </div>
+                </div>
+            )
+        },
+        {
+            title: "Customer",
+            key: "name",
+            className: "py-3",
+            render: (value, item) => (
+                <div className="flex flex-col">
+                    <span className="font-bold text-sm text-[#2FA9D9]">{String(value)}</span>
+                    <span className="text-xs text-gray-400 mt-0.5 truncate max-w-[200px]">
+                        {item.address || "No address"}
+                    </span>
+                </div>
+            )
+        },
+        {
+            title: "Phone",
+            key: "phone",
+            className: "py-3",
+            render: (value) => <span className="text-sm text-gray-700">{value ? String(value) : "—"}</span>
+        },
+        {
+            title: "Total Orders",
+            key: "total_orders",
+            className: "py-3",
+            render: (value) => <span className="text-sm font-semibold text-gray-900">{value ?? 0}</span>
+        }
     ];
 
     const sessionColumns: Column<SessionGroup>[] = [
@@ -1149,7 +1190,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
 
             {/* ── New Session Modal ── */}
             <Dialog open={isSessionModalOpen} onOpenChange={(open) => { if (!open) handleCancelSession(); }}>
-                <DialogContent className="sm:max-w-md max-w-[95vw] overflow-hidden flex flex-col max-h-[90vh] p-0">
+                <DialogContent className="sm:max-w-3xl max-w-[95vw] overflow-hidden flex flex-col max-h-[90vh] p-0">
                     <DialogHeader className="p-6 pb-0">
                         <DialogTitle className="text-lg font-bold">
                             {stagedLogs.length > 0 ? "Active Session" : "Start New Session"}
@@ -1228,158 +1269,101 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                             </div>
                         )}
 
-                        {/* Initial Customer Selection (only if no items staged yet) */}
-                        {stagedLogs.length === 0 && !sessionData.customerName && !isManualInput && (
-                            <div className="space-y-3 font-sans animate-in fade-in duration-200">
-                                <button
-                                    type="button"
-                                    onClick={() => setIsCustomerListCollapsed(!isCustomerListCollapsed)}
-                                    className="flex items-center justify-between w-full text-left py-1 hover:opacity-85 transition-opacity"
-                                >
-                                    <span className="text-sm font-semibold text-gray-700">Select Customer / Location</span>
-                                    <ChevronDown className={`w-4 h-4 text-gray-400 transition-transform duration-200 ${isCustomerListCollapsed ? "-rotate-90" : "rotate-0"}`} />
-                                </button>
-
-                                {!isCustomerListCollapsed && (
-                                    <div className="space-y-3 animate-in fade-in duration-200">
-                                        <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                            <Input
-                                                placeholder="Search by customer name or address…"
-                                                className="pl-9 h-11"
-                                                value={customerSearch}
-                                                onChange={(e) => setCustomerSearch(e.target.value)}
-                                            />
-                                        </div>
-
-                                        <div className="max-h-[200px] overflow-y-auto space-y-1 pr-1 border rounded-xl p-1 bg-gray-50/50">
-                                            {isLoadingCustomers ? (
-                                                <div className="py-8 text-center text-sm text-gray-400">Loading customers…</div>
-                                            ) : filteredCustomers.length === 0 ? (
-                                                <div className="py-8 text-center text-sm text-gray-400 italic">No customers found</div>
-                                            ) : (
-                                                filteredCustomers.map((c) => (
-                                                    <button
-                                                        key={c.id}
-                                                        onClick={() => setSessionData(p => ({
-                                                            ...p,
-                                                            customerName: c.name,
-                                                            customerId: c.id,
-                                                            address: c.address ?? "No Address Provided"
-                                                        }))}
-                                                        className="w-full p-3 rounded-lg text-left hover:bg-[#2FA9D9]/5 hover:border-[#2FA9D9]/20 border border-transparent transition-all group"
-                                                    >
-                                                        <div className="font-semibold text-sm group-hover:text-[#2FA9D9]">{c.name}</div>
-                                                        <div className="text-[10px] text-gray-400 flex items-center gap-1 mt-0.5 truncate">
-                                                            <MapPin className="w-2.5 h-2.5" />
-                                                            {c.address ?? "No Address"}
-                                                        </div>
-                                                    </button>
-                                                ))
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
-
-                                <div className="flex justify-between items-center text-xs font-semibold text-gray-400 uppercase tracking-wider py-1 font-sans">
-                                    <span className="w-full border-t border-gray-100 mr-2"></span>
-                                    <span className="shrink-0 text-[10px]">Or</span>
-                                    <span className="w-full border-t border-gray-100 ml-2"></span>
-                                </div>
-
-                                <button
-                                    type="button"
-                                    onClick={() => {
-                                        setIsManualInput(true);
-                                        setSessionData(p => ({
-                                            ...p,
-                                            customerName: "",
-                                            customerId: "",
-                                            address: ""
-                                        }));
-                                    }}
-                                    className="w-full p-3 rounded-xl border border-dashed border-[#2FA9D9]/30 hover:border-[#2FA9D9] hover:bg-[#2FA9D9]/5 text-[#2FA9D9] transition-all flex items-center justify-center gap-2 group text-xs font-semibold font-sans"
-                                >
-                                    <Plus className="w-3.5 h-3.5 group-hover:scale-110 transition-transform text-[#2FA9D9]" />
-                                    Input Custom Name & Address
-                                </button>
-                            </div>
-                        )}
-
-                        {/* Custom Customer Manual Input Form */}
-                        {stagedLogs.length === 0 && isManualInput && (
-                            <div className="space-y-4 animate-in fade-in slide-in-from-bottom-2 duration-200 font-sans">
-                                <div className="flex items-center justify-between">
-                                    <label className="text-sm font-medium text-gray-700">Custom Customer Details</label>
+                        {/* Customer Selection or Manual Input */}
+                        {stagedLogs.length === 0 && (
+                            <div className="space-y-4 animate-in fade-in duration-200">
+                                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                                    <h3 className="text-sm font-bold text-gray-900">
+                                        {isManualInput ? "Manual Entry" : "Select a Customer"}
+                                    </h3>
                                     <button
                                         type="button"
                                         onClick={() => {
-                                            setIsManualInput(false);
+                                            setIsManualInput(!isManualInput);
                                             setSessionData(p => ({
                                                 ...p,
+                                                id: p.id || generateSessionId(),
                                                 customerName: "",
                                                 customerId: "",
                                                 address: ""
                                             }));
                                         }}
-                                        className="text-xs text-[#2FA9D9] hover:underline font-semibold"
+                                        className="text-xs font-semibold text-[#2FA9D9] hover:underline"
                                     >
-                                        Back to Search
+                                        {isManualInput ? "Back to Database Search" : "Walk-in / Manual Entry"}
                                     </button>
                                 </div>
 
-                                <div className="space-y-4">
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer Name</label>
-                                        <Input
-                                            placeholder="Enter customer name..."
-                                            value={sessionData.customerName}
-                                            onChange={(e) => setSessionData(p => ({ ...p, customerName: e.target.value }))}
-                                            className="h-11"
-                                        />
+                                {isManualInput ? (
+                                    <div className="space-y-4 animate-in fade-in zoom-in-95 font-sans">
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer Name</label>
+                                            <Input
+                                                placeholder="Enter customer name..."
+                                                value={sessionData.customerName}
+                                                onChange={(e) => setSessionData(p => ({ ...p, customerName: e.target.value }))}
+                                                className="h-11"
+                                            />
+                                        </div>
+                                        <div className="space-y-1.5">
+                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Session Address</label>
+                                            <Input
+                                                placeholder="Enter customer address..."
+                                                value={sessionData.address}
+                                                onChange={(e) => setSessionData(p => ({ ...p, address: e.target.value }))}
+                                                className="h-11"
+                                            />
+                                        </div>
                                     </div>
-                                    <div className="space-y-1.5">
-                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Session Address</label>
-                                        <Input
-                                            placeholder="Enter customer address..."
-                                            value={sessionData.address}
-                                            onChange={(e) => setSessionData(p => ({ ...p, address: e.target.value }))}
-                                            className="h-11"
-                                        />
+                                ) : (
+                                    <div className="space-y-4 animate-in fade-in zoom-in-95 font-sans">
+                                        <div className="relative">
+                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                            <Input
+                                                placeholder="Search customers by name, address, or phone..."
+                                                className="pl-9 h-11 bg-gray-50/50 border-gray-200"
+                                                value={customerSearch}
+                                                onChange={(e) => setCustomerSearch(e.target.value)}
+                                            />
+                                        </div>
+                                        
+                                        <div className="max-h-[350px] overflow-y-auto border border-gray-100 rounded-xl bg-white shadow-sm">
+                                            {isLoadingCustomers ? (
+                                                <div className="py-12 text-center text-sm text-gray-400">Loading customers…</div>
+                                            ) : (
+                                                <DataTable
+                                                    columns={customerColumns}
+                                                    data={filteredCustomers}
+                                                    keyExtractor={(c) => c.id}
+                                                    onRowClick={(c) => setSessionData(p => ({
+                                                        ...p,
+                                                        customerName: c.name,
+                                                        customerId: c.id,
+                                                        address: c.address ?? ""
+                                                    }))}
+                                                />
+                                            )}
+                                        </div>
                                     </div>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Manual Address Confirmation (only for new session setup) */}
-                        {stagedLogs.length === 0 && sessionData.customerName && (
-                            <div className="space-y-2 animate-in fade-in zoom-in-95">
-                                <label className="text-sm font-medium text-gray-700">Confirm Session address</label>
-                                <Input
-                                    value={sessionData.address}
-                                    onChange={(e) => setSessionData(p => ({ ...p, address: e.target.value }))}
-                                    placeholder="Verify address…"
-                                    className="h-11"
-                                />
-                                <p className="text-[10px] text-gray-400 px-1">This address will be applied to all logs in this session.</p>
+                                )}
                             </div>
                         )}
                     </div>
 
-                    <DialogFooter className="p-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-col sm:space-x-0 gap-3">
+                    <DialogFooter className="p-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:space-x-2 gap-3 sm:gap-0 justify-end bg-gray-50/30">
                         {stagedLogs.length > 0 ? (
                             <>
                                 <Button
                                     onClick={handleFinishSession}
                                     disabled={isSavingSession}
-                                    className="w-full bg-[#2FA9D9] hover:bg-[#2195c0] text-white h-11 border border-[#2FA9D9]"
+                                    className="w-full sm:w-auto bg-[#2FA9D9] hover:bg-[#2195c0] text-white h-11"
                                 >
                                     {isSavingSession ? "Saving…" : "Finish Session & Save All"}
                                 </Button>
                                 <Button
                                     variant="outline"
                                     onClick={handleStartAddingToSession}
-                                    className="w-full border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5 h-11"
+                                    className="w-full sm:w-auto border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5 h-11"
                                 >
                                     <Plus className="w-4 h-4 mr-1.5" />
                                     Add Another Log
@@ -1387,23 +1371,22 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                 <Button
                                     variant="ghost"
                                     onClick={handleClearStaging}
-                                    className="w-full text-rose-500 hover:text-rose-600 hover:bg-rose-50 h-11"
+                                    className="w-full sm:w-auto text-rose-500 hover:text-rose-600 hover:bg-rose-50 h-11"
                                 >
                                     Discard Session
                                 </Button>
                             </>
                         ) : (
                             <>
+                                <Button variant="outline" onClick={handleCancelSession} className="w-full sm:w-auto h-11">
+                                    Cancel
+                                </Button>
                                 <Button
                                     onClick={handleStartAddingToSession}
-                                    disabled={!sessionData.address || !sessionData.customerName}
-                                    className="w-full bg-[#2FA9D9] hover:bg-[#2195c0] text-white h-11 border border-[#2FA9D9]"
+                                    disabled={!sessionData.customerName || (isManualInput && !sessionData.address)}
+                                    className="w-full sm:w-auto bg-[#2FA9D9] hover:bg-[#2195c0] text-white h-11 px-8"
                                 >
-                                    <Plus className="w-4 h-4 mr-1.5" />
-                                    Start Session & Add Log
-                                </Button>
-                                <Button variant="outline" onClick={handleCancelSession} className="w-full h-11">
-                                    Cancel
+                                    Continue Order
                                 </Button>
                             </>
                         )}
