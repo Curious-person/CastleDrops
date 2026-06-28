@@ -45,13 +45,12 @@ export default function Customers() {
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
-    // Form State
-    const [formData, setFormData] = useState<Omit<Customer, "id" | "total_orders" | "alkaline_orders" | "mineral_orders">>({
+    // Form State — water_preference is excluded because it's auto-computed from order history
+    const [formData, setFormData] = useState<Omit<Customer, "id" | "total_orders" | "alkaline_orders" | "mineral_orders" | "water_preference">>({
         name: "",
         address: "",
         phone: "",
         landmark: "",
-        water_preference: "alkaline",
         notes: ""
     });
 
@@ -80,7 +79,6 @@ export default function Customers() {
             address: "",
             phone: "",
             landmark: "",
-            water_preference: "alkaline",
             notes: ""
         });
         setIsEditOpen(true);
@@ -95,7 +93,6 @@ export default function Customers() {
             address: customer.address,
             phone: customer.phone,
             landmark: customer.landmark,
-            water_preference: customer.water_preference,
             notes: customer.notes
         });
         setIsEditOpen(true);
@@ -248,6 +245,10 @@ export default function Customers() {
                         badgeClass = "bg-purple-100 text-purple-700";
                         badgeLabel = "Both Types";
                         break;
+                    default:
+                        badgeClass = "bg-gray-100 text-gray-500";
+                        badgeLabel = "No order yet";
+                        break;
                 }
                 return (
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-semibold ${badgeClass}`}>
@@ -324,6 +325,10 @@ export default function Customers() {
             case "both":
                 badgeClass = "bg-purple-100 text-purple-700";
                 badgeLabel = "Both";
+                break;
+            default:
+                badgeClass = "bg-gray-100 text-gray-500";
+                badgeLabel = "No order yet";
                 break;
         }
 
@@ -490,6 +495,7 @@ export default function Customers() {
                                     <SelectItem value="alkaline">Alkaline Preference</SelectItem>
                                     <SelectItem value="mineral">Mineral Preference</SelectItem>
                                     <SelectItem value="both">Both Types Preference</SelectItem>
+                                    <SelectItem value="no_order_yet">No Order Yet</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -588,23 +594,15 @@ export default function Customers() {
                                 />
                             </div>
 
-                            {/* Water Preference */}
+                            {/* Water Preference — auto-determined from order history, not editable */}
                             <div className="grid gap-2">
-                                <Label htmlFor="water_preference" className="text-xs font-semibold text-gray-700">Water Type Preference</Label>
-                                <Select
-                                    value={formData.water_preference}
-                                    onValueChange={(val) => setFormData((p) => ({ ...p, water_preference: val as WaterPreference }))}
-                                    disabled={isMutating}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Select water type preference" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="alkaline">Alkaline Water</SelectItem>
-                                        <SelectItem value="mineral">Mineral Water</SelectItem>
-                                        <SelectItem value="both">Both (Alkaline & Mineral)</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <Label className="text-xs font-semibold text-gray-700">Water Type Preference</Label>
+                                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md">
+                                    <Droplet className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                    <span className="text-xs text-gray-500 leading-snug">
+                                        Automatically determined from the customer&apos;s order history. Will show <strong>No order yet</strong> until the first order is placed.
+                                    </span>
+                                </div>
                             </div>
 
                             {/* Notes */}
@@ -711,13 +709,17 @@ export default function Customers() {
                                                             ? "bg-sky-100 text-sky-700"
                                                             : selectedCustomer.water_preference === "mineral"
                                                             ? "bg-emerald-100 text-emerald-700"
-                                                            : "bg-purple-100 text-purple-700"
+                                                            : selectedCustomer.water_preference === "both"
+                                                            ? "bg-purple-100 text-purple-700"
+                                                            : "bg-gray-100 text-gray-500"
                                                     }`}>
                                                         {selectedCustomer.water_preference === "alkaline"
                                                             ? "Alkaline Water"
                                                             : selectedCustomer.water_preference === "mineral"
                                                             ? "Mineral Water"
-                                                            : "Both Types"}
+                                                            : selectedCustomer.water_preference === "both"
+                                                            ? "Both Types"
+                                                            : "No order yet"}
                                                     </span>
                                                 </div>
                                                 <div className="space-y-1">

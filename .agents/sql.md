@@ -37,4 +37,21 @@ Daily operational logs for water refilling business
 | `address` | `text` |  Nullable |
 | `phone` | `text` |  Nullable |
 | `created_at` | `timestamptz` |  Nullable |
+| `landmark` | `text` |  Nullable |
+| `notes` | `text` |  Nullable |
 
+## Table `water_logs`
+
+Daily operational meter readings for water production.
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `created_at` | `timestamptz` |  Nullable |
+| `log_date` | `date` |  |
+| `water_type` | `text` |  |
+| `start_reading` | `numeric` |  |
+| `end_reading` | `numeric` |  |
+| `notes` | `text` |  Nullable |

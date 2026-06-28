@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { format } from "date-fns";
 import {
     Droplets, Plus, Search, Edit,
@@ -20,27 +20,11 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 
-// Types
-type WaterType = "alkaline" | "mineral";
-
-interface WaterLog {
-    id: string;
-    log_date: string;
-    water_type: WaterType;
-    start_reading: number;
-    end_reading: number;
-    notes: string;
-}
-
-// Initial Static Data
-const INITIAL_LOGS: WaterLog[] = [
-    { id: "1", log_date: "2026-06-26", water_type: "alkaline", start_reading: 15240, end_reading: 15490, notes: "Standard daily reading" },
-    { id: "2", log_date: "2026-06-26", water_type: "mineral", start_reading: 24800, end_reading: 25150, notes: "Peak delivery hours" },
-    { id: "3", log_date: "2026-06-25", water_type: "alkaline", start_reading: 14980, end_reading: 15240, notes: "Normal operations" },
-    { id: "4", log_date: "2026-06-25", water_type: "mineral", start_reading: 24500, end_reading: 24800, notes: "Normal operational cycle" },
-    { id: "5", log_date: "2026-06-24", water_type: "alkaline", start_reading: 14750, end_reading: 14980, notes: "Routine check successful" },
-    { id: "6", log_date: "2026-06-24", water_type: "mineral", start_reading: 24120, end_reading: 24500, notes: "Filter backwash conducted in morning" }
-];
+import {
+    WaterType, WaterLog,
+    getWaterLogs, createWaterLog, updateWaterLog, deleteWaterLog
+} from "@/app/actions/water_logs";
+import { Loader2 } from "lucide-react";
 
 // Mock POS Transaction Data (Insights derived from orders sales volume)
 const MOCK_POS_SALES = {
@@ -49,7 +33,11 @@ const MOCK_POS_SALES = {
 };
 
 export default function WaterLogs() {
-    const [logs, setLogs] = useState<WaterLog[]>(INITIAL_LOGS);
+    const [logs, setLogs] = useState<WaterLog[]>([]);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [isMutating, setIsMutating] = useState(false);
+    const [apiError, setApiError] = useState("");
+    
     const [searchQuery, setSearchQuery] = useState("");
     const [typeFilter, setTypeFilter] = useState<"all" | WaterType>("all");
 
@@ -66,6 +54,23 @@ export default function WaterLogs() {
 
     // Delete confirmation state
     const [deleteId, setDeleteId] = useState<string | null>(null);
+
+    // Fetch data
+    const fetchLogs = async (showLoading = true) => {
+        if (showLoading) setIsInitialLoading(true);
+        setApiError("");
+        try {
+            const data = await getWaterLogs();
+            setLogs(data);
+        } catch (err: any) {
+            setApiError(err.message || "Failed to load water logs.");
+        } finally {
+            if (showLoading) setIsInitialLoading(false);
+        }
+    };
+    useEffect(() => {
+        fetchLogs();
+    }, []);
 
     // CRUD Actions
     const handleOpenCreate = () => {
@@ -92,30 +97,45 @@ export default function WaterLogs() {
         setIsOpen(true);
     };
 
-    const handleSave = (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
         if (formData.end_reading < formData.start_reading) {
             alert("End reading cannot be less than start reading.");
             return;
         }
 
-        if (editingLog) {
-            setLogs((prev) =>
-                prev.map((log) => (log.id === editingLog.id ? { ...log, ...formData } : log))
-            );
-        } else {
-            const newLog: WaterLog = {
-                id: Math.random().toString(36).substring(2, 9),
-                ...formData
-            };
-            setLogs((prev) => [newLog, ...prev]);
+        setIsMutating(true);
+        setApiError("");
+        try {
+            if (editingLog) {
+                await updateWaterLog(editingLog.id, formData);
+                setLogs((prev) =>
+                    prev.map((log) => (log.id === editingLog.id ? { ...log, ...formData } : log))
+                );
+            } else {
+                const newLog = await createWaterLog(formData);
+                setLogs((prev) => [newLog, ...prev]);
+            }
+            setIsOpen(false);
+        } catch (err: any) {
+            setApiError(err.message || "Failed to save water log.");
+        } finally {
+            setIsMutating(false);
         }
-        setIsOpen(false);
     };
 
-    const handleDelete = (id: string) => {
-        setLogs((prev) => prev.filter((log) => log.id !== id));
-        setDeleteId(null);
+    const handleDelete = async (id: string) => {
+        setIsMutating(true);
+        setApiError("");
+        try {
+            await deleteWaterLog(id);
+            setLogs((prev) => prev.filter((log) => log.id !== id));
+            setDeleteId(null);
+        } catch (err: any) {
+            setApiError(err.message || "Failed to delete water log.");
+        } finally {
+            setIsMutating(false);
+        }
     };
 
     // Calculate dynamic insights based on current log entries
@@ -262,6 +282,12 @@ export default function WaterLogs() {
         <PageContainer title="Water Logs">
             <div className="space-y-6 p-4 sm:p-6 lg:p-8">
                 
+                {apiError && (
+                    <div className="p-3 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg">
+                        {apiError}
+                    </div>
+                )}
+
                 {/* ─── INSIGHTS CARDS (GRID) ─── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Alkaline Used */}
@@ -379,15 +405,22 @@ export default function WaterLogs() {
                 </div>
 
                 {/* ─── DATA TABLE & CARDS ─── */}
-                <DataTable
-                    columns={columns}
-                    data={filteredLogs}
-                    keyExtractor={(item) => item.id}
-                    emptyIcon={<Droplets className="w-10 h-10 text-gray-200" />}
-                    emptyTitle="No water logs found"
-                    emptyDescription="Try resetting filters or add a new log"
-                    renderMobileItem={renderMobileItem}
-                />
+                {isInitialLoading ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white border border-gray-100 rounded-xl space-y-3">
+                        <Loader2 className="w-8 h-8 text-[#2FA9D9] animate-spin" />
+                        <p className="text-sm text-gray-500 font-medium font-sans animate-pulse">Loading water logs...</p>
+                    </div>
+                ) : (
+                    <DataTable
+                        columns={columns}
+                        data={filteredLogs}
+                        keyExtractor={(item) => item.id}
+                        emptyIcon={<Droplets className="w-10 h-10 text-gray-200" />}
+                        emptyTitle="No water logs found"
+                        emptyDescription="Try resetting filters or add a new log"
+                        renderMobileItem={renderMobileItem}
+                    />
+                )}
 
                 {/* ─── ADD/EDIT DIALOG ─── */}
                 <Dialog open={isOpen} onOpenChange={setIsOpen}>
@@ -478,13 +511,16 @@ export default function WaterLogs() {
                                     variant="outline"
                                     onClick={() => setIsOpen(false)}
                                     className="w-full sm:w-auto"
+                                    disabled={isMutating}
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     type="submit"
-                                    className="bg-[#2FA9D9] hover:bg-[#2195c0] text-white w-full sm:w-auto"
+                                    disabled={isMutating}
+                                    className="bg-[#2FA9D9] hover:bg-[#2195c0] text-white w-full sm:w-auto flex items-center justify-center gap-1.5"
                                 >
+                                    {isMutating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                     Save Entry
                                 </Button>
                             </DialogFooter>
@@ -506,13 +542,16 @@ export default function WaterLogs() {
                                 variant="outline"
                                 onClick={() => setDeleteId(null)}
                                 className="w-full sm:w-auto"
+                                disabled={isMutating}
                             >
                                 Cancel
                             </Button>
                             <Button
                                 onClick={() => deleteId && handleDelete(deleteId)}
-                                className="bg-rose-600 hover:bg-rose-700 text-white w-full sm:w-auto"
+                                disabled={isMutating}
+                                className="bg-rose-600 hover:bg-rose-700 text-white w-full sm:w-auto flex items-center justify-center gap-1.5"
                             >
+                                {isMutating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                 Yes, Delete Log
                             </Button>
                         </DialogFooter>

@@ -5,13 +5,14 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import {
     ArrowLeft, ArrowRight, Check,
-    Package, Droplets, CreditCard, Truck, Flag,
-    Circle, Square, Droplet, Waves, Smartphone,
+    Package, CreditCard, Truck, Flag,
+    Droplet, Waves, Smartphone,
     Banknote, Landmark, Store, Clock, CheckCircle2, XCircle
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
+import { createLogsBulk } from "@/app/actions/logs";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -21,11 +22,15 @@ type PaymentMethod = "gcash" | "cash" | "bank_transfer" | "credit";
 type FulfillmentType = "delivery" | "pickup";
 type OrderStatus = "ongoing" | "delivered" | "cancelled";
 
-interface FormData {
-    container_type: ContainerType | null;
+interface OrderItem {
+    water_type: WaterType;
+    container_type: ContainerType;
     quantity: number;
     water_quantity: number;
-    water_type: WaterType | null;
+}
+
+interface FormData {
+    items: OrderItem[];
     customer_id: string | null;
     customer_name: string;
     customer_address: string;
@@ -49,11 +54,10 @@ const WATER_PRICE_PER_GALLON: Record<WaterType, number> = {
 // ─── Step Config ──────────────────────────────────────────────────────────────
 
 const STEPS = [
-    { id: 1, title: "Container Type", subtitle: "What type of container?", icon: Package },
-    { id: 2, title: "Water Type", subtitle: "What type of water?", icon: Droplets },
-    { id: 3, title: "Payment Method", subtitle: "How will they pay?", icon: CreditCard },
-    { id: 4, title: "Fulfillment", subtitle: "Delivery or pick-up?", icon: Truck },
-    { id: 5, title: "Order Status", subtitle: "Set the initial order status", icon: Flag },
+    { id: 1, title: "Order Items", subtitle: "Select water types & quantities", icon: Package },
+    { id: 2, title: "Payment Method", subtitle: "How will they pay?", icon: CreditCard },
+    { id: 3, title: "Fulfillment", subtitle: "Delivery or pick-up?", icon: Truck },
+    { id: 4, title: "Order Status", subtitle: "Set the initial order status", icon: Flag },
 ];
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -172,10 +176,12 @@ function MultiStepForm() {
     const customerId = searchParams.get("customerId");
 
     const [formData, setFormData] = useState<FormData>({
-        container_type: null,
-        quantity: 1,
-        water_quantity: 1,
-        water_type: null,
+        items: [
+            { water_type: "alkaline", container_type: "round", quantity: 0, water_quantity: 1 },
+            { water_type: "alkaline", container_type: "flat", quantity: 0, water_quantity: 1 },
+            { water_type: "mineral", container_type: "round", quantity: 0, water_quantity: 1 },
+            { water_type: "mineral", container_type: "flat", quantity: 0, water_quantity: 1 },
+        ],
         customer_id: customerId || null,
         customer_name: customerName || "",
         customer_address: sessionAddress || "",
@@ -184,25 +190,29 @@ function MultiStepForm() {
         initial_status: "ongoing",
     });
 
-
-
     const canProceed = (): boolean => {
         switch (currentStep) {
-            case 1: return formData.container_type !== null && formData.quantity > 0;
-            case 2: return formData.water_type !== null && formData.water_quantity > 0;
-            case 3: return formData.payment_method !== null;
-            case 4: return formData.fulfillment_type !== null;
-            case 5: return true; // always has a default (ongoing)
-            default: return false;
+            case 1:
+                return formData.items.some(item => item.quantity > 0 && item.water_quantity > 0);
+            case 2:
+                return formData.payment_method !== null;
+            case 3:
+                return formData.fulfillment_type !== null;
+            case 4:
+                return true;
+            default:
+                return false;
         }
     };
 
+    const calculateItemPrice = (item: OrderItem): number => {
+        const gallons = CONTAINER_GALLONS[item.container_type];
+        const pricePerGallon = WATER_PRICE_PER_GALLON[item.water_type];
+        return item.quantity * item.water_quantity * gallons * pricePerGallon;
+    };
 
     const calculateTotalPrice = (): number => {
-        if (!formData.water_type || !formData.container_type) return 0;
-        const gallons = CONTAINER_GALLONS[formData.container_type];
-        const pricePerGallon = WATER_PRICE_PER_GALLON[formData.water_type];
-        return formData.quantity * formData.water_quantity * gallons * pricePerGallon;
+        return formData.items.reduce((sum, item) => sum + calculateItemPrice(item), 0);
     };
 
     const goNext = () => {
@@ -214,7 +224,6 @@ function MultiStepForm() {
         setCurrentStep((p) => Math.max(p - 1, 1));
     };
 
-
     const handleSubmit = async () => {
         if (!canProceed() || isSubmitting) return;
         setIsSubmitting(true);
@@ -222,40 +231,40 @@ function MultiStepForm() {
             const today = new Date();
             const log_date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
-            const newLog = {
-                log_date,
-                container_type: formData.container_type,
-                quantity: formData.quantity * formData.water_quantity,
-                water_type: formData.water_type,
-                price_per_gallon: formData.water_type ? WATER_PRICE_PER_GALLON[formData.water_type] : null,
-                total_gallons: formData.container_type ? (formData.quantity * formData.water_quantity) * CONTAINER_GALLONS[formData.container_type] : null,
-                total_price: calculateTotalPrice(),
-                customer_id: formData.customer_id,
-                customer_name: formData.customer_name,
-                customer_address: formData.customer_address,
-                payment_method: formData.payment_method,
-                fulfillment_type: formData.fulfillment_type,
-                status: formData.initial_status,
-                session_id: sessionId,
-                session_address: sessionAddress,
-            };
+            const activeItems = formData.items.filter(item => item.quantity > 0);
+            
+            const newLogs = activeItems.map(item => {
+                const gallons = CONTAINER_GALLONS[item.container_type];
+                const pricePerGallon = WATER_PRICE_PER_GALLON[item.water_type];
+                const total_gallons = item.quantity * item.water_quantity * gallons;
+                const total_price = item.quantity * item.water_quantity * gallons * pricePerGallon;
 
-            // Stage in sessionStorage
-            const staged = JSON.parse(sessionStorage.getItem("staged_session_logs") || "[]");
-            staged.push(newLog);
-            sessionStorage.setItem("staged_session_logs", JSON.stringify(staged));
-
-            // Redirect back with all session info to keep modal open
-            const params = new URLSearchParams({
-                sessionOpen: "true",
-                sessionId: sessionId || "",
-                address: sessionAddress || "",
-                customerName: customerName || "",
-                customerId: customerId || ""
+                return {
+                    log_date,
+                    container_type: item.container_type,
+                    quantity: item.quantity * item.water_quantity,
+                    water_type: item.water_type,
+                    price_per_gallon: pricePerGallon,
+                    total_gallons,
+                    total_price,
+                    customer_id: formData.customer_id,
+                    customer_name: formData.customer_name,
+                    customer_address: formData.customer_address,
+                    payment_method: formData.payment_method,
+                    fulfillment_type: formData.fulfillment_type,
+                    status: formData.initial_status,
+                    session_id: sessionId,
+                    session_address: sessionAddress,
+                };
             });
 
-            router.push(`/orders?${params.toString()}`);
-            router.refresh();
+            const result = await createLogsBulk(newLogs);
+            if (result.success) {
+                // Clear any leftover client-side staged storage
+                sessionStorage.removeItem("staged_session_logs");
+                router.push("/orders");
+                router.refresh();
+            }
         } catch (err) {
             console.error(err);
         } finally {
@@ -354,118 +363,148 @@ function MultiStepForm() {
                         {/* ────── STEP CONTENT ────── */}
                         <div className="min-h-[260px]">
 
-                            {/* Step 1 — Container Type + Quantity */}
+                            {/* Step 1 — Order Items */}
                             {currentStep === 1 && (
                                 <div className="space-y-4">
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <OptionCard
-                                            selected={formData.container_type === "round"}
-                                            onClick={() => setFormData((p) => ({ ...p, container_type: "round" }))}
-                                            icon={<Circle className="w-8 h-8 text-[#2FA9D9]" />}
-                                            label="Round"
-                                            desc="Cylindrical gallon container"
-                                        />
-                                        <OptionCard
-                                            selected={formData.container_type === "flat"}
-                                            onClick={() => setFormData((p) => ({ ...p, container_type: "flat" }))}
-                                            icon={<Square className="w-8 h-8 text-[#2FA9D9]" />}
-                                            label="Flat"
-                                            desc="Flat / rectangular container"
-                                        />
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                                        {formData.items.map((item, index) => {
+                                            const isSelected = item.quantity > 0;
+                                            const Icon = item.water_type === "alkaline" ? Droplet : Waves;
+                                            const pricePerGallon = WATER_PRICE_PER_GALLON[item.water_type];
+                                            const totalGal = item.quantity * item.water_quantity * CONTAINER_GALLONS[item.container_type];
+                                            const itemPrice = calculateItemPrice(item);
+
+                                            return (
+                                                <div
+                                                    key={index}
+                                                    className={`
+                                                        p-5 rounded-2xl border-2 text-left transition-all duration-200 flex flex-col justify-between h-full
+                                                        ${isSelected
+                                                            ? "border-[#2FA9D9] bg-gradient-to-br from-[#2FA9D9]/8 to-[#76D4F9]/5 shadow-[#2FA9D9]/5 scale-[1.01]"
+                                                            : "border-gray-200 hover:border-[#2FA9D9]/50 hover:bg-gray-50/50"
+                                                        }
+                                                    `}
+                                                >
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-2 leading-none">
+                                                            <div className="w-8 h-8 rounded-lg bg-[#2FA9D9]/10 flex items-center justify-center shrink-0">
+                                                                <Icon className="w-4 h-4 text-[#2FA9D9]" />
+                                                            </div>
+                                                            <div>
+                                                                <div className="font-bold text-sm text-gray-800 capitalize">
+                                                                    {item.water_type} ({item.container_type})
+                                                                </div>
+                                                                <div className="text-[10px] text-gray-500 font-medium">
+                                                                    ₱{pricePerGallon}/gal • {CONTAINER_GALLONS[item.container_type]} gal
+                                                                </div>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Quantity Counter for Containers */}
+                                                        <div className="flex items-center justify-between gap-3 py-2 border-b border-gray-100/50">
+                                                            <span className="text-xs text-gray-600 font-semibold">Containers:</span>
+                                                            <div className="flex items-center gap-1.5">
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setFormData((p) => {
+                                                                        const items = [...p.items];
+                                                                        items[index].quantity = Math.max(0, items[index].quantity - 1);
+                                                                        return { ...p, items };
+                                                                    })}
+                                                                    className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-bold text-xs"
+                                                                >
+                                                                    −
+                                                                </button>
+                                                                <Input
+                                                                    type="number"
+                                                                    min="0"
+                                                                    value={item.quantity}
+                                                                    onChange={(e) => {
+                                                                        const val = Math.max(0, parseInt(e.target.value) || 0);
+                                                                        setFormData((p) => {
+                                                                            const items = [...p.items];
+                                                                            items[index].quantity = val;
+                                                                            return { ...p, items };
+                                                                        });
+                                                                    }}
+                                                                    className="w-12 h-7 text-center font-bold text-xs p-0 border-gray-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                                />
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => setFormData((p) => {
+                                                                        const items = [...p.items];
+                                                                        items[index].quantity += 1;
+                                                                        return { ...p, items };
+                                                                    })}
+                                                                    className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-bold text-xs"
+                                                                >
+                                                                    +
+                                                                </button>
+                                                            </div>
+                                                        </div>
+
+                                                        {/* Refills Counter */}
+                                                        {item.quantity > 0 && (
+                                                            <div className="flex items-center justify-between gap-3 py-2 animate-in fade-in slide-in-from-top-1">
+                                                                <span className="text-xs text-gray-600 font-semibold">Refills:</span>
+                                                                <div className="flex items-center gap-1.5">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setFormData((p) => {
+                                                                            const items = [...p.items];
+                                                                            items[index].water_quantity = Math.max(1, items[index].water_quantity - 1);
+                                                                            return { ...p, items };
+                                                                        })}
+                                                                        className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-bold text-xs"
+                                                                    >
+                                                                        −
+                                                                    </button>
+                                                                    <Input
+                                                                        type="number"
+                                                                        min="1"
+                                                                        value={item.water_quantity}
+                                                                        onChange={(e) => {
+                                                                            const val = Math.max(1, parseInt(e.target.value) || 1);
+                                                                            setFormData((p) => {
+                                                                                const items = [...p.items];
+                                                                                items[index].water_quantity = val;
+                                                                                return { ...p, items };
+                                                                            });
+                                                                        }}
+                                                                        className="w-12 h-7 text-center font-bold text-xs p-0 border-gray-200 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                                                                    />
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={() => setFormData((p) => {
+                                                                            const items = [...p.items];
+                                                                            items[index].water_quantity += 1;
+                                                                            return { ...p, items };
+                                                                        })}
+                                                                        className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-bold text-xs"
+                                                                    >
+                                                                        +
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    {/* Item Summary Price */}
+                                                    {item.quantity > 0 && (
+                                                        <div className="mt-4 pt-3 border-t border-gray-100/50 flex justify-between items-center text-xs font-semibold text-gray-500 animate-in fade-in">
+                                                            <span>{totalGal} gal total</span>
+                                                            <span className="text-[#2FA9D9] font-bold text-sm">₱{itemPrice.toLocaleString()}</span>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
                                     </div>
-                                    {formData.container_type && (
-                                        <div className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100">
-                                            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                                                Quantity:
-                                            </label>
-                                            <div className="flex items-center gap-2 flex-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData((p) => ({ ...p, quantity: Math.max(1, p.quantity - 1) }))}
-                                                    className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-semibold"
-                                                >
-                                                    −
-                                                </button>
-                                                <Input
-                                                    type="number"
-                                                    min="1"
-                                                    value={formData.quantity}
-                                                    onChange={(e) => setFormData((p) => ({ ...p, quantity: Math.max(1, parseInt(e.target.value) || 1) }))}
-                                                    className="w-20 text-center font-semibold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData((p) => ({ ...p, quantity: p.quantity + 1 }))}
-                                                    className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-semibold"
-                                                >
-                                                    +
-                                                </button>
-                                            </div>
-                                            <span className="text-xs text-gray-500 whitespace-nowrap">
-                                                {formData.quantity} container{formData.quantity > 1 ? 's' : ''}
-                                            </span>
-                                        </div>
-                                    )}
                                 </div>
                             )}
 
-                            {/* Step 2 — Water Type */}
+                            {/* Step 2 — Payment Method */}
                             {currentStep === 2 && (
-                                <>
-                                    <div className="grid grid-cols-2 gap-4">
-                                        <OptionCard
-                                            selected={formData.water_type === "alkaline"}
-                                            onClick={() => setFormData((p) => ({ ...p, water_type: "alkaline" }))}
-                                            icon={<Droplet className="w-8 h-8 text-[#2FA9D9]" />}
-                                            label="Alkaline"
-                                            desc="pH-balanced purified water"
-                                        />
-                                        <OptionCard
-                                            selected={formData.water_type === "mineral"}
-                                            onClick={() => setFormData((p) => ({ ...p, water_type: "mineral" }))}
-                                            icon={<Waves className="w-8 h-8 text-[#2FA9D9]" />}
-                                            label="Mineral"
-                                            desc="Natural mineral spring water"
-                                        />
-                                    </div>
-                                    {formData.water_type && (
-                                        <div className="flex items-center gap-3 p-4 rounded-2xl bg-gray-50 border border-gray-100 mt-4">
-                                            <label className="text-sm font-medium text-gray-700 whitespace-nowrap">
-                                                Water Qty:
-                                            </label>
-                                            <div className="flex items-center gap-2 flex-1">
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData((p) => ({ ...p, water_quantity: Math.max(1, p.water_quantity - 1) }))}
-                                                    className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-semibold"
-                                                >
-                                                    −
-                                                </button>
-                                                <Input
-                                                    type="number"
-                                                    min="1"
-                                                    value={formData.water_quantity}
-                                                    onChange={(e) => setFormData((p) => ({ ...p, water_quantity: Math.max(1, parseInt(e.target.value) || 1) }))}
-                                                    className="w-20 text-center font-semibold [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
-                                                />
-                                                <button
-                                                    type="button"
-                                                    onClick={() => setFormData((p) => ({ ...p, water_quantity: p.water_quantity + 1 }))}
-                                                    className="w-9 h-9 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-semibold"
-                                                >
-                                                    +
-                                                </button>
-                                            </div>
-                                            <span className="text-xs text-gray-500 whitespace-nowrap">
-                                                {formData.water_quantity} refill{formData.water_quantity > 1 ? 's' : ''}
-                                            </span>
-                                        </div>
-                                    )}
-                                </>
-                            )}
-
-                            {/* Step 3 — Payment Method */}
-                            {currentStep === 3 && (
                                 <div className="grid grid-cols-2 gap-3">
                                     <OptionCard
                                         selected={formData.payment_method === "gcash"}
@@ -498,8 +537,8 @@ function MultiStepForm() {
                                 </div>
                             )}
 
-                            {/* Step 4 — Fulfillment */}
-                            {currentStep === 4 && (
+                            {/* Step 3 — Fulfillment */}
+                            {currentStep === 3 && (
                                 <div className="grid grid-cols-2 gap-4">
                                     <OptionCard
                                         selected={formData.fulfillment_type === "delivery"}
@@ -518,8 +557,8 @@ function MultiStepForm() {
                                 </div>
                             )}
 
-                            {/* Step 5 — Order Status + Summary */}
-                            {currentStep === 5 && (
+                            {/* Step 4 — Order Status + Summary */}
+                            {currentStep === 4 && (
                                 <div className="space-y-5">
                                     {/* Status options */}
                                     <div className="flex flex-col gap-3">
@@ -533,7 +572,7 @@ function MultiStepForm() {
                                                         relative w-full p-4 rounded-2xl border-2 text-left
                                                         transition-all duration-200
                                                         ${isSelected
-                                                            ? `${cfg.selectedBorder} bg-gradient-to-r ${cfg.selectedBg} shadow-md scale-[1.01]`
+                                                            ? `${cfg.selectedBorder} bg-gradient-to-r ${cfg.selectedBg} scale-[1.01]`
                                                             : "border-gray-200 hover:border-gray-300 hover:bg-gray-50"
                                                         }
                                                     `}
@@ -567,32 +606,31 @@ function MultiStepForm() {
                                         <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
                                             Order Summary
                                         </p>
-                                        <SummaryRow label="Container" value={formData.container_type ? CONTAINER_LABELS[formData.container_type] : "—"} />
-                                        {formData.container_type && (
-                                            <SummaryRow label="Container Qty" value={`${formData.quantity} container${formData.quantity > 1 ? "s" : ""}`} />
-                                        )}
-                                        <SummaryRow label="Water Type" value={formData.water_type ? WATER_LABELS[formData.water_type] : "—"} />
-                                        {formData.water_type && (
-                                            <SummaryRow label="Water Qty" value={`${formData.water_quantity} refill${formData.water_quantity > 1 ? "s" : ""}`} />
-                                        )}
-                                        {formData.water_type && formData.container_type && (
-                                            <SummaryRow label="Price per gallon" value={`₱${WATER_PRICE_PER_GALLON[formData.water_type]}`} />
-                                        )}
-                                        {formData.container_type && (
-                                            <SummaryRow label="Total gallons" value={`${formData.quantity * formData.water_quantity * CONTAINER_GALLONS[formData.container_type]} gal`} />
-                                        )}
-                                        <div className="flex justify-between items-center text-sm py-2 mt-2 pt-2 border-t border-gray-200">
-                                            <span className="font-semibold text-gray-700">Total Price</span>
-                                            <span className="font-bold text-lg text-[#2FA9D9]">
+                                        
+                                        <div className="space-y-1.5 pb-3 border-b border-gray-200">
+                                            {formData.items.filter(item => item.quantity > 0).map((item, idx) => {
+                                                const cLabel = CONTAINER_LABELS[item.container_type];
+                                                const wLabel = WATER_LABELS[item.water_type];
+                                                const price = calculateItemPrice(item);
+                                                return (
+                                                    <div key={idx} className="flex justify-between items-center text-xs py-0.5">
+                                                        <span className="text-gray-600 capitalize font-medium">
+                                                            {wLabel} ({cLabel}) • {item.quantity} container{item.quantity > 1 ? 's' : ''} × {item.water_quantity} refill{item.water_quantity > 1 ? 's' : ''}
+                                                        </span>
+                                                        <span className="font-semibold text-gray-800">₱{price.toLocaleString()}</span>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+
+                                        <div className="flex justify-between items-center text-sm py-2 mt-2 pt-2">
+                                            <span className="font-bold text-gray-700">Total Price</span>
+                                            <span className="font-extrabold text-lg text-[#2FA9D9]">
                                                 ₱{calculateTotalPrice().toLocaleString()}
                                             </span>
                                         </div>
-                                        {formData.water_type && formData.container_type && (
-                                            <div className="text-xs text-gray-500 text-right mt-1">
-                                                ({formData.quantity} container × {formData.water_quantity} refill × {CONTAINER_GALLONS[formData.container_type]} gal × ₱{WATER_PRICE_PER_GALLON[formData.water_type]}/gal)
-                                            </div>
-                                        )}
-                                        <div className="border-t border-gray-200 mt-3 pt-3">
+
+                                        <div className="border-t border-gray-200 mt-3 pt-3 space-y-1">
                                             <SummaryRow label="Customer" value={formData.customer_name || "—"} />
                                             {formData.customer_address && (
                                                 <SummaryRow label="Address" value={formData.customer_address} />
@@ -621,7 +659,7 @@ function MultiStepForm() {
                                 <Button
                                     onClick={goNext}
                                     disabled={!canProceed()}
-                                    className="gap-2 bg-[#2FA9D9] hover:bg-[#2195c0] text-white shadow-lg shadow-[#2FA9D9]/30 disabled:opacity-40 disabled:shadow-none"
+                                    className="gap-2 bg-[#2FA9D9] hover:bg-[#2195c0] text-white disabled:opacity-40"
                                 >
                                     Next
                                     <ArrowRight className="w-4 h-4" />
@@ -631,12 +669,12 @@ function MultiStepForm() {
                                     onClick={handleSubmit}
                                     disabled={isSubmitting}
                                     className={`
-                                        gap-2 text-white shadow-lg px-6 disabled:opacity-40 disabled:shadow-none
+                                        gap-2 text-white px-6 disabled:opacity-40
                                         ${formData.initial_status === "delivered"
-                                            ? "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 shadow-emerald-500/30"
+                                            ? "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
                                             : formData.initial_status === "cancelled"
-                                                ? "bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700 shadow-rose-500/30"
-                                                : "bg-gradient-to-r from-[#2FA9D9] to-[#1e8fbd] hover:from-[#2195c0] hover:to-[#1a7da8] shadow-[#2FA9D9]/30"
+                                                ? "bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700"
+                                                : "bg-gradient-to-r from-[#2FA9D9] to-[#1e8fbd] hover:from-[#2195c0] hover:to-[#1a7da8]"
                                         }
                                     `}
                                 >

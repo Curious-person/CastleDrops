@@ -5,7 +5,7 @@ import { useDebouncedCallback } from "use-debounce";
 import {
     PhilippinePeso, Plus, Search, Trash, Eye,
     CheckCircle2, XCircle, RotateCcw, Clock, PackageCheck, Package,
-    Edit, MapPin, Printer, ChevronDown
+    Edit, MapPin, Printer
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -20,7 +20,7 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { deleteLog, updateLogStatus, deleteSession, updateSession, createLogsBulk, updateSessionStatus } from "@/app/actions/logs";
+import { deleteLog, updateLogStatus, deleteSession, updateSession, updateSessionStatus } from "@/app/actions/logs";
 import { getCustomers, type Customer } from "@/app/actions/customers";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -59,7 +59,7 @@ type SessionGroup = {
     onStatusChange: (id: string, status: string) => void;
 };
 
-type NewLog = Omit<Order, "id">;
+
 
 // ─── Label / color maps ───────────────────────────────────────────────────────
 
@@ -371,44 +371,19 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
 
     // Session State
     const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
-    const [stagedLogs, setStagedLogs] = useState<NewLog[]>([]);
-    const [isSavingSession, setIsSavingSession] = useState(false);
     const statTab = "today";
     const [sessionListTab, setSessionListTab] = useState("ongoing");
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
     const [customerSearch, setCustomerSearch] = useState("");
     const [isManualInput, setIsManualInput] = useState(false);
-    const [isCustomerListCollapsed, setIsCustomerListCollapsed] = useState(false);
+
     const [sessionData, setSessionData] = useState({
         id: "",
         address: "",
         customerName: "",
         customerId: ""
     });
-
-    // Detect redirect back from /new with session info
-    useEffect(() => {
-        const sessionOpen = searchParams.get("sessionOpen");
-        if (sessionOpen === "true") {
-            const id = searchParams.get("sessionId") || "";
-            const addr = searchParams.get("address") || "";
-            const name = searchParams.get("customerName") || "";
-            const cId = searchParams.get("customerId") || "";
-
-            setSessionData({ id, address: addr, customerName: name, customerId: cId });
-            setIsSessionModalOpen(true);
-
-            // Clear URL params without reloading to keep UI clean
-            const url = new URL(window.location.href);
-            url.searchParams.delete("sessionOpen");
-            window.history.replaceState({}, "", url);
-        }
-
-        // Load staged logs from storage
-        const staged = JSON.parse(sessionStorage.getItem("staged_session_logs") || "[]");
-        setStagedLogs(staged);
-    }, [searchParams]);
 
     useEffect(() => {
         setIsLoadingCustomers(true);
@@ -432,12 +407,6 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     };
 
     const handleOpenSessionModal = () => {
-        // If we already have staged logs, just open
-        if (stagedLogs.length > 0) {
-            setIsSessionModalOpen(true);
-            return;
-        }
-
         setSessionData({
             id: generateSessionId(),
             address: "",
@@ -446,7 +415,6 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
         });
         setCustomerSearch("");
         setIsManualInput(false);
-        setIsCustomerListCollapsed(false);
         setIsSessionModalOpen(true);
     };
 
@@ -462,50 +430,16 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
         router.push(`/orders/new?${params.toString()}`);
     };
 
-    const handleFinishSession = async () => {
-        if (stagedLogs.length === 0) return;
-        setIsSavingSession(true);
-        try {
-            const result = await createLogsBulk(stagedLogs);
-            if (result.success) {
-                sessionStorage.removeItem("staged_session_logs");
-                setStagedLogs([]);
-                setIsSessionModalOpen(false);
-                router.refresh();
-            }
-        } catch (err) {
-            console.error("Bulk save failed:", err);
-        } finally {
-            setIsSavingSession(false);
-        }
-    };
-
-    const handleClearStaging = () => {
-        sessionStorage.removeItem("staged_session_logs");
-        setStagedLogs([]);
-        setIsSessionModalOpen(false);
-    };
-
     const handleCancelSession = () => {
-        if (stagedLogs.length === 0) {
-            setSessionData({
-                id: "",
-                address: "",
-                customerName: "",
-                customerId: ""
-            });
-            setCustomerSearch("");
-            setIsManualInput(false);
-            setIsCustomerListCollapsed(false);
-        }
+        setSessionData({
+            id: "",
+            address: "",
+            customerName: "",
+            customerId: ""
+        });
+        setCustomerSearch("");
+        setIsManualInput(false);
         setIsSessionModalOpen(false);
-    };
-
-    const handleRemoveStagedLog = (index: number) => {
-        const updated = [...stagedLogs];
-        updated.splice(index, 1);
-        setStagedLogs(updated);
-        sessionStorage.setItem("staged_session_logs", JSON.stringify(updated));
     };
 
 
@@ -1193,24 +1127,16 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                 <DialogContent className="sm:max-w-3xl max-w-[95vw] overflow-hidden flex flex-col max-h-[90vh] p-0">
                     <DialogHeader className="p-6 pb-0">
                         <DialogTitle className="text-lg font-bold">
-                            {stagedLogs.length > 0 ? "Active Session" : "Start New Session"}
+                            Create New Order
                         </DialogTitle>
                     </DialogHeader>
 
                     <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
                         {/* Session Details Summary */}
-                        <div className="space-y-3">
-                            <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Session Context</label>
-                            <div className="p-4 bg-gray-50 border rounded-2xl space-y-2">
-                                <div className="flex justify-between items-center py-1 font-sans">
-                                    <span className="text-sm font-bold text-gray-900 tracking-tight">Session ID: {sessionData.id}</span>
-                                    {stagedLogs.length > 0 && (
-                                        <span className="text-[10px] px-2.5 py-0.5 rounded-full bg-sky-50 text-[#2FA9D9] border border-sky-100 font-bold">
-                                            {stagedLogs.length} ITEM{stagedLogs.length > 1 ? "S" : ""} STAGED
-                                        </span>
-                                    )}
-                                </div>
-                                {sessionData.customerName && (
+                        {sessionData.customerName && (
+                            <div className="space-y-3">
+                                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Selected Customer</label>
+                                <div className="p-4 bg-gray-50 border rounded-2xl space-y-2">
                                     <div className="flex items-center gap-2">
                                         <div className="w-8 h-8 rounded-full bg-[#2FA9D9]/10 flex items-center justify-center shrink-0">
                                             <MapPin className="w-4 h-4 text-[#2FA9D9]" />
@@ -1220,176 +1146,120 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                             <div className="text-[10px] text-gray-500 truncate">{sessionData.address}</div>
                                         </div>
                                     </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Staged Logs Summary List */}
-                        {stagedLogs.length > 0 && (
-                            <div className="space-y-3 animate-in fade-in slide-in-from-bottom-2">
-                                <label className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Staged Items</label>
-                                <div className="space-y-2">
-                                    {stagedLogs.map((log, idx) => {
-                                        const qty = log.quantity ?? 1;
-                                        const total = log.total_price ?? 0;
-                                        return (
-                                            <div key={idx} className="flex items-center gap-3 p-3 bg-white border border-gray-100 rounded-xl hover:border-[#2FA9D9]/30 transition-all group">
-                                                <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0 text-[10px] font-bold">
-                                                    #{idx + 1}
-                                                </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <div className="flex items-center gap-1.5 capitalize text-xs font-semibold text-gray-800">
-                                                        <span>{log.container_type}</span>
-                                                        <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                                                        <span>{log.water_type}</span>
-                                                        <span className="w-1 h-1 rounded-full bg-gray-300"></span>
-                                                        <span className="text-gray-500">×{qty}</span>
-                                                    </div>
-                                                    <div className="text-[10px] text-gray-400 mt-0.5">
-                                                        {log.payment_method} • {log.fulfillment_type}
-                                                    </div>
-                                                </div>
-                                                <div className="text-right shrink-0 mr-2">
-                                                    <div className="text-sm font-bold text-[#2FA9D9]">₱{total.toLocaleString()}</div>
-                                                    {log.total_gallons && (
-                                                        <div className="text-[10px] text-gray-400">{log.total_gallons} gal</div>
-                                                    )}
-                                                </div>
-                                                <Button
-                                                    variant="ghost" size="sm"
-                                                    className="h-7 w-7 p-0 text-gray-300 hover:text-rose-500 hover:bg-rose-50 opacity-0 group-hover:opacity-100 transition-all"
-                                                    onClick={() => handleRemoveStagedLog(idx)}
-                                                >
-                                                    <XCircle className="w-4 h-4" />
-                                                </Button>
-                                            </div>
-                                        );
-                                    })}
                                 </div>
                             </div>
                         )}
 
                         {/* Customer Selection or Manual Input */}
-                        {stagedLogs.length === 0 && (
-                            <div className="space-y-4 animate-in fade-in duration-200">
-                                <div className="flex items-center justify-between border-b border-gray-100 pb-3">
-                                    <h3 className="text-sm font-bold text-gray-900">
-                                        {isManualInput ? "Manual Entry" : "Select a Customer"}
-                                    </h3>
-                                    <button
-                                        type="button"
-                                        onClick={() => {
-                                            setIsManualInput(!isManualInput);
-                                            setSessionData(p => ({
-                                                ...p,
-                                                id: p.id || generateSessionId(),
-                                                customerName: "",
-                                                customerId: "",
-                                                address: ""
-                                            }));
-                                        }}
-                                        className="text-xs font-semibold text-[#2FA9D9] hover:underline"
-                                    >
-                                        {isManualInput ? "Back to Database Search" : "Walk-in / Manual Entry"}
-                                    </button>
-                                </div>
-
-                                {isManualInput ? (
-                                    <div className="space-y-4 animate-in fade-in zoom-in-95 font-sans">
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer Name</label>
-                                            <Input
-                                                placeholder="Enter customer name..."
-                                                value={sessionData.customerName}
-                                                onChange={(e) => setSessionData(p => ({ ...p, customerName: e.target.value }))}
-                                                className="h-11"
-                                            />
-                                        </div>
-                                        <div className="space-y-1.5">
-                                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Session Address</label>
-                                            <Input
-                                                placeholder="Enter customer address..."
-                                                value={sessionData.address}
-                                                onChange={(e) => setSessionData(p => ({ ...p, address: e.target.value }))}
-                                                className="h-11"
-                                            />
-                                        </div>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-4 animate-in fade-in zoom-in-95 font-sans">
-                                        <div className="relative">
-                                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-                                            <Input
-                                                placeholder="Search customers by name, address, or phone..."
-                                                className="pl-9 h-11 bg-gray-50/50 border-gray-200"
-                                                value={customerSearch}
-                                                onChange={(e) => setCustomerSearch(e.target.value)}
-                                            />
-                                        </div>
-                                        
-                                        <div className="max-h-[350px] overflow-y-auto border border-gray-100 rounded-xl bg-white shadow-sm">
-                                            {isLoadingCustomers ? (
-                                                <div className="py-12 text-center text-sm text-gray-400">Loading customers…</div>
-                                            ) : (
-                                                <DataTable
-                                                    columns={customerColumns}
-                                                    data={filteredCustomers}
-                                                    keyExtractor={(c) => c.id}
-                                                    onRowClick={(c) => setSessionData(p => ({
-                                                        ...p,
-                                                        customerName: c.name,
-                                                        customerId: c.id,
-                                                        address: c.address ?? ""
-                                                    }))}
-                                                />
-                                            )}
-                                        </div>
-                                    </div>
-                                )}
+                        <div className="space-y-4 animate-in fade-in duration-200">
+                            <div className="flex items-center justify-between border-b border-gray-100 pb-3">
+                                <h3 className="text-sm font-bold text-gray-900">
+                                    {isManualInput ? "Manual Entry" : "Select a Customer"}
+                                </h3>
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setIsManualInput(!isManualInput);
+                                        setSessionData(p => ({
+                                            ...p,
+                                            id: p.id || generateSessionId(),
+                                            customerName: "",
+                                            customerId: "",
+                                            address: ""
+                                        }));
+                                    }}
+                                    className="text-xs font-semibold text-[#2FA9D9] hover:underline"
+                                >
+                                    {isManualInput ? "Back to Database Search" : "Walk-in / Manual Entry"}
+                                </button>
                             </div>
-                        )}
+
+                            {isManualInput ? (
+                                <div className="space-y-4 animate-in fade-in zoom-in-95 font-sans">
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Customer Name</label>
+                                        <Input
+                                            placeholder="Enter customer name..."
+                                            value={sessionData.customerName}
+                                            onChange={(e) => setSessionData(p => ({ ...p, customerName: e.target.value }))}
+                                            className="h-11"
+                                        />
+                                    </div>
+                                    <div className="space-y-1.5">
+                                        <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Session Address</label>
+                                        <Input
+                                            placeholder="Enter customer address..."
+                                            value={sessionData.address}
+                                            onChange={(e) => setSessionData(p => ({ ...p, address: e.target.value }))}
+                                            className="h-11"
+                                        />
+                                    </div>
+                                </div>
+                            ) : (
+                                <div className="space-y-4 animate-in fade-in zoom-in-95 font-sans">
+                                    <div className="relative">
+                                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+                                        <Input
+                                            placeholder="Search customers by name, address, or phone..."
+                                            className="pl-9 h-11 bg-gray-50/50 border-gray-200"
+                                            value={customerSearch}
+                                            onChange={(e) => setCustomerSearch(e.target.value)}
+                                        />
+                                    </div>
+                                    
+                                    <div className="max-h-[350px] overflow-y-auto border border-gray-100 rounded-xl bg-white shadow-sm">
+                                        {isLoadingCustomers ? (
+                                            <div className="py-12 text-center text-sm text-gray-400">Loading customers…</div>
+                                        ) : customers.length === 0 ? (
+                                            <div className="flex flex-col items-center justify-center py-12 px-6 text-center gap-4">
+                                                <div className="w-12 h-12 rounded-full bg-sky-50 flex items-center justify-center">
+                                                    <MapPin className="w-6 h-6 text-[#2FA9D9]" />
+                                                </div>
+                                                <div className="space-y-1">
+                                                    <p className="text-sm font-semibold text-gray-800">No customers yet</p>
+                                                    <p className="text-xs text-gray-400 leading-relaxed max-w-[220px]">
+                                                        Add a customer to the database before creating an order.
+                                                    </p>
+                                                </div>
+                                                <Button
+                                                    type="button"
+                                                    size="sm"
+                                                    onClick={() => router.push("/customers")}
+                                                    className="bg-[#2FA9D9] hover:bg-[#2195c0] text-white text-xs px-5 h-9"
+                                                >
+                                                    Go to Customers
+                                                </Button>
+                                            </div>
+                                        ) : (
+                                            <DataTable
+                                                columns={customerColumns}
+                                                data={filteredCustomers}
+                                                keyExtractor={(c) => c.id}
+                                                onRowClick={(c) => setSessionData(p => ({
+                                                    ...p,
+                                                    customerName: c.name,
+                                                    customerId: c.id,
+                                                    address: c.address ?? ""
+                                                }))}
+                                            />
+                                        )}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
 
                     <DialogFooter className="p-6 pt-4 border-t border-gray-100 flex flex-col sm:flex-row sm:space-x-2 gap-3 sm:gap-0 justify-end bg-gray-50/30">
-                        {stagedLogs.length > 0 ? (
-                            <>
-                                <Button
-                                    onClick={handleFinishSession}
-                                    disabled={isSavingSession}
-                                    className="w-full sm:w-auto bg-[#2FA9D9] hover:bg-[#2195c0] text-white h-11"
-                                >
-                                    {isSavingSession ? "Saving…" : "Finish Session & Save All"}
-                                </Button>
-                                <Button
-                                    variant="outline"
-                                    onClick={handleStartAddingToSession}
-                                    className="w-full sm:w-auto border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5 h-11"
-                                >
-                                    <Plus className="w-4 h-4 mr-1.5" />
-                                    Add Another Log
-                                </Button>
-                                <Button
-                                    variant="ghost"
-                                    onClick={handleClearStaging}
-                                    className="w-full sm:w-auto text-rose-500 hover:text-rose-600 hover:bg-rose-50 h-11"
-                                >
-                                    Discard Session
-                                </Button>
-                            </>
-                        ) : (
-                            <>
-                                <Button variant="outline" onClick={handleCancelSession} className="w-full sm:w-auto h-11">
-                                    Cancel
-                                </Button>
-                                <Button
-                                    onClick={handleStartAddingToSession}
-                                    disabled={!sessionData.customerName || (isManualInput && !sessionData.address)}
-                                    className="w-full sm:w-auto bg-[#2FA9D9] hover:bg-[#2195c0] text-white h-11 px-8"
-                                >
-                                    Continue Order
-                                </Button>
-                            </>
-                        )}
+                        <Button variant="outline" onClick={handleCancelSession} className="w-full sm:w-auto h-11">
+                            Cancel
+                        </Button>
+                        <Button
+                            onClick={handleStartAddingToSession}
+                            disabled={!sessionData.customerName || (isManualInput && !sessionData.address)}
+                            className="w-full sm:w-auto bg-[#2FA9D9] hover:bg-[#2195c0] text-white h-11 px-8"
+                        >
+                            Continue Order
+                        </Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>

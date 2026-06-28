@@ -3,7 +3,7 @@
 import { createClient } from "@/lib/supabase/server"
 import { revalidatePath } from "next/cache"
 
-export type WaterPreference = "alkaline" | "mineral" | "both";
+export type WaterPreference = "alkaline" | "mineral" | "both" | "no_order_yet";
 
 export interface Customer {
     id: string;
@@ -31,7 +31,6 @@ export async function getCustomers(): Promise<Customer[]> {
             address,
             phone,
             landmark,
-            water_preference,
             notes,
             created_at,
             orders!fk_orders_customer (
@@ -49,13 +48,25 @@ export async function getCustomers(): Promise<Customer[]> {
         const alkaline_orders = orders.filter((o: any) => o.water_type === "alkaline").length;
         const mineral_orders = orders.filter((o: any) => o.water_type === "mineral").length;
 
+        // Compute water_preference dynamically from order history
+        let water_preference: WaterPreference;
+        if (alkaline_orders > 0 && mineral_orders > 0) {
+            water_preference = "both";
+        } else if (alkaline_orders > 0) {
+            water_preference = "alkaline";
+        } else if (mineral_orders > 0) {
+            water_preference = "mineral";
+        } else {
+            water_preference = "no_order_yet";
+        }
+
         return {
             id: c.id,
             name: c.name,
             address: c.address || "",
             phone: c.phone || "",
             landmark: c.landmark || "",
-            water_preference: (c.water_preference as WaterPreference) || "alkaline",
+            water_preference,
             notes: c.notes || "",
             created_at: c.created_at,
             total_orders: orders.length,
@@ -68,7 +79,7 @@ export async function getCustomers(): Promise<Customer[]> {
 }
 
 export async function createCustomer(
-    customer: Omit<Customer, "id" | "total_orders" | "alkaline_orders" | "mineral_orders">
+    customer: Omit<Customer, "id" | "total_orders" | "alkaline_orders" | "mineral_orders" | "water_preference">
 ): Promise<Customer> {
     const supabase = await createClient();
 
@@ -79,7 +90,6 @@ export async function createCustomer(
             address: customer.address,
             phone: customer.phone,
             landmark: customer.landmark,
-            water_preference: customer.water_preference,
             notes: customer.notes
         }])
         .select()
@@ -93,7 +103,8 @@ export async function createCustomer(
         address: data.address || "",
         phone: data.phone || "",
         landmark: data.landmark || "",
-        water_preference: data.water_preference || "alkaline",
+        // New customers have no orders yet — preference will auto-compute on next fetch
+        water_preference: "no_order_yet",
         notes: data.notes || "",
         total_orders: 0,
         alkaline_orders: 0,
@@ -115,7 +126,6 @@ export async function updateCustomer(
             address: customer.address,
             phone: customer.phone,
             landmark: customer.landmark,
-            water_preference: customer.water_preference,
             notes: customer.notes
         })
         .eq("id", id);
