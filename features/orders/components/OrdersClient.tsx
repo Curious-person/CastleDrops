@@ -22,6 +22,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { deleteLog, updateLogStatus, deleteSession, updateSession, updateSessionStatus } from "@/app/actions/logs";
 import { getCustomers, type Customer } from "@/app/actions/customers";
+import { recordPayment } from "@/app/actions/payments";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,12 +40,14 @@ type Order = {
     customer_id: string | null;
     customer_name: string;
     customer_address: string;
-    payment_method: string;
     fulfillment_type: string;
     status: OrderStatus | null;
     session_id: string | null;
-    session_address: string | null;
-    session_status?: string | null;
+    order_sessions?: {
+        status: string;
+        address: string;
+        payments?: { amount: number }[];
+    } | null;
 };
 
 type SessionGroup = {
@@ -53,6 +56,10 @@ type SessionGroup = {
     address: string;
     date: string;
     status: string;
+    totalOwed: number;
+    totalPaid: number;
+    balance: number;
+    paymentStatus: string;
     logs: Order[];
     onDelete: (id: string) => void;
     onEdit: (id: string, address: string) => void;
@@ -75,6 +82,16 @@ const FULFILLMENT_LABELS: Record<string, string> = {
 const PAYMENT_COLORS: Record<string, string> = {
     gcash: "bg-blue-100 text-blue-700", cash: "bg-green-100 text-green-700",
     bank_transfer: "bg-purple-100 text-purple-700", credit: "bg-amber-100 text-amber-700",
+};
+const PAYMENT_STATUS_LABELS: Record<string, string> = {
+    paid: "Paid",
+    partial: "Partial",
+    unpaid: "Unpaid",
+};
+const PAYMENT_STATUS_COLORS: Record<string, string> = {
+    paid: "bg-green-100 text-green-700",
+    partial: "bg-amber-100 text-amber-700",
+    unpaid: "bg-red-100 text-red-700",
 };
 const WATER_COLORS: Record<string, string> = {
     alkaline: "bg-sky-100 text-sky-700", mineral: "bg-emerald-100 text-emerald-700",
@@ -264,10 +281,117 @@ function TallyModal({ open, onClose, logs }: { open: boolean; onClose: () => voi
     );
 }
 
+// ─── Payment Modal ────────────────────────────────────────────────────────────
+
+function PaymentModal({
+    open,
+    onClose,
+    sessionGroup,
+    onSuccess
+}: {
+    open: boolean;
+    onClose: () => void;
+    sessionGroup: SessionGroup | null;
+    onSuccess: () => void;
+}) {
+    const [amount, setAmount] = useState<string>("");
+    const [method, setMethod] = useState("cash");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+
+    useEffect(() => {
+        if (open && sessionGroup) {
+            setAmount(sessionGroup.balance.toString());
+            setMethod("cash");
+        }
+    }, [open, sessionGroup]);
+
+    if (!open || !sessionGroup) return null;
+
+    const handleSubmit = async () => {
+        const numAmount = parseFloat(amount);
+        if (isNaN(numAmount) || numAmount <= 0) return;
+
+        setIsSubmitting(true);
+        try {
+            const result = await recordPayment({
+                session_id: sessionGroup.sessionId,
+                amount: numAmount,
+                method
+            });
+            if (result?.success) {
+                onSuccess();
+                onClose();
+            }
+        } catch (err) {
+            console.error(err);
+        } finally {
+            setIsSubmitting(false);
+        }
+    };
+
+    return (
+        <Dialog open={open} onOpenChange={onClose}>
+            <DialogContent className="sm:max-w-sm max-w-[95vw]">
+                <DialogHeader>
+                    <DialogTitle>Settle Balance</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-4 py-2 text-sm">
+                    <div className="flex justify-between border-b pb-2">
+                        <span className="text-gray-500">Remaining Balance</span>
+                        <span className="font-bold text-lg text-amber-600">₱{sessionGroup.balance.toLocaleString()}</span>
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-gray-500 text-xs">Payment Amount (₱)</label>
+                        <Input
+                            type="number"
+                            min="1"
+                            step="0.01"
+                            value={amount}
+                            onChange={(e) => setAmount(e.target.value)}
+                        />
+                    </div>
+                    <div className="space-y-2">
+                        <label className="text-gray-500 text-xs">Payment Method</label>
+                        <Select value={method} onValueChange={setMethod}>
+                            <SelectTrigger>
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="cash">Cash</SelectItem>
+                                <SelectItem value="gcash">GCash</SelectItem>
+                                <SelectItem value="bank_transfer">Bank Transfer</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                </div>
+                <DialogFooter className="mt-4">
+                    <Button variant="outline" onClick={onClose} disabled={isSubmitting}>Cancel</Button>
+                    <Button onClick={handleSubmit} disabled={isSubmitting || parseFloat(amount) <= 0} className="bg-emerald-600 hover:bg-emerald-700 text-white">
+                        {isSubmitting ? "Recording..." : "Record Payment"}
+                    </Button>
+                </DialogFooter>
+            </DialogContent>
+        </Dialog>
+    );
+}
+
+
+// ─── Helper Functions ─────────────────────────────────────────────────────────
+
+function calculateLogPrice(log: Order): number {
+    if (log.total_price !== null && log.total_price !== undefined) return log.total_price;
+    // Fallback calculation for older logs
+    const quantity = log.quantity ?? 1;
+    const wType = log.water_type || "mineral";
+    const cType = log.container_type || "round";
+    const gal = cType === "round" || cType === "flat" ? 5 : 5;
+    const pricePerGal = wType === "alkaline" ? 50 : 35;
+    return quantity * gal * pricePerGal;
+}
 
 // ─── Shared column builders ───────────────────────────────────────────────────
 
-function buildBaseColumns(): Column<Order>[] {
+function buildBaseColumns(getPaymentStatus?: (item: Order) => string): Column<Order>[] {
     return [
         {
             title: "Date",
@@ -329,8 +453,18 @@ function buildBaseColumns(): Column<Order>[] {
         },
         {
             title: "Payment",
-            key: "payment_method",
-            render: (value) => <Badge value={String(value)} labels={PAYMENT_LABELS} colors={PAYMENT_COLORS} />,
+            key: "session_id",
+            render: (_value, item: Order) => {
+                const paymentStatus = getPaymentStatus
+                    ? getPaymentStatus(item)
+                    : (() => {
+                        const sessionStatus = item.order_sessions?.status ?? null;
+                        return sessionStatus === "completed" ? "paid"
+                            : sessionStatus === "ongoing" ? "partial"
+                                : "unpaid";
+                    })();
+                return <Badge value={paymentStatus} labels={PAYMENT_STATUS_LABELS} colors={PAYMENT_STATUS_COLORS} />;
+            },
         },
         {
             title: "Fulfillment",
@@ -368,6 +502,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     const [isSessionDetailsModalOpen, setIsSessionDetailsModalOpen] = useState(false);
     const [selectedSessionForTally, setSelectedSessionForTally] = useState<SessionGroup | null>(null);
     const [isTallyModalOpen, setIsTallyModalOpen] = useState(false);
+    const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
 
     // Session State
     const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
@@ -524,12 +659,19 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
         logs.forEach(log => {
             const sid = log.session_id || `LEGACY-${log.id}`;
             if (!groups[sid]) {
+                const sessionPayments = log.order_sessions?.payments || [];
+                const totalPaid = sessionPayments.reduce((sum, p) => sum + Number(p.amount), 0);
+
                 groups[sid] = {
                     sessionId: sid,
                     customerName: log.customer_name || "Custom Customer",
-                    address: log.session_address || log.customer_address || "No Address",
+                    address: log.order_sessions?.address || log.customer_address || "No Address",
                     date: log.log_date,
-                    status: log.session_status || "ongoing", // Default to first log's status or ongoing
+                    status: log.order_sessions?.status || "ongoing", // Default to first log's status or ongoing
+                    totalOwed: 0,
+                    totalPaid,
+                    balance: 0,
+                    paymentStatus: "unpaid",
                     logs: [],
                     onDelete: handleOpenDeleteSession,
                     onEdit: handleOpenEditSession,
@@ -537,12 +679,33 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                 };
             }
             groups[sid].logs.push(log);
+            groups[sid].totalOwed += calculateLogPrice(log);
         });
 
-        return Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        const sortedGroups = Object.values(groups).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+        sortedGroups.forEach(group => {
+            group.balance = Math.max(0, group.totalOwed - group.totalPaid);
+            if (group.totalOwed > 0 && group.totalPaid >= group.totalOwed) {
+                group.paymentStatus = "paid";
+            } else if (group.totalPaid > 0) {
+                group.paymentStatus = "partial";
+            } else {
+                group.paymentStatus = "unpaid";
+            }
+        });
+        return sortedGroups;
     };
 
     const allSessions = groupLogsBySession(initialData);
+
+    const activeSessionDetails = selectedSessionForDetails
+        ? allSessions.find(g => g.sessionId === selectedSessionForDetails.sessionId) || selectedSessionForDetails
+        : null;
+
+    const getPaymentStatus = (item: Order) => {
+        const sessionGroup = allSessions.find(g => g.sessionId === item.session_id);
+        return sessionGroup?.paymentStatus ?? "unpaid";
+    };
 
     const handleSearch = useDebouncedCallback((term: string) => {
         const params = new URLSearchParams(searchParams.toString());
@@ -563,7 +726,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     // ── Column sets for each tab ─────────────────────────────────────────────
 
     const ongoingColumns: Column<Order>[] = [
-        ...buildBaseColumns(),
+        ...buildBaseColumns(getPaymentStatus),
         {
             title: "Actions",
             key: "id",
@@ -607,7 +770,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     ];
 
     const deliveredColumns: Column<Order>[] = [
-        ...buildBaseColumns(),
+        ...buildBaseColumns(getPaymentStatus),
         {
             title: "Actions",
             key: "id",
@@ -633,7 +796,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     ];
 
     const cancelledColumns: Column<Order>[] = [
-        ...buildBaseColumns(),
+        ...buildBaseColumns(getPaymentStatus),
         {
             title: "Actions",
             key: "id",
@@ -894,16 +1057,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
         return true;
     });
 
-    const calculateLogPrice = (log: Order) => {
-        if (log.total_price) return log.total_price;
-        // Fallback calculation for older logs
-        const quantity = log.quantity ?? 1;
-        const wType = log.water_type || "mineral";
-        const cType = log.container_type || "round";
-        const gal = cType === "round" || cType === "flat" ? 5 : 5;
-        const pricePerGal = wType === "alkaline" ? 50 : 35;
-        return (quantity) * gal * pricePerGal; // Note: water_quantity fallback is assumed 1 here
-    };
+
 
     const totalRevenue = filteredStatsLogs.reduce((sum, log) => sum + calculateLogPrice(log), 0);
     const totalOrders = filteredStatsLogs.length;
@@ -954,173 +1108,180 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                 </div>
 
                 {/* ── Table Panel ── */}
-                    {/* Toolbar */}
-                    <div className="p-4 sm:p-6 flex flex-col sm:flex-row gap-3 border-b border-gray-100">
-                        <div className="flex items-center relative max-w-md w-full">
-                            <Input
-                                defaultValue={searchParams.get("query")?.toString()}
-                                onChange={(e) => handleSearch(e.target.value)}
-                                placeholder="Search by customer, address, payment…"
-                                className="pr-10 w-full"
-                            />
-                            <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                {/* Toolbar */}
+                <div className="p-4 sm:p-6 flex flex-col sm:flex-row gap-3 border-b border-gray-100">
+                    <div className="flex items-center relative max-w-md w-full">
+                        <Input
+                            defaultValue={searchParams.get("query")?.toString()}
+                            onChange={(e) => handleSearch(e.target.value)}
+                            placeholder="Search by customer, address, payment…"
+                            className="pr-10 w-full"
+                        />
+                        <Search className="w-4 h-4 absolute right-3 top-1/2 -translate-y-1/2 text-gray-400" />
+                    </div>
+                    <div className="w-full sm:w-auto">
+                        <Select onValueChange={handleSort} defaultValue={searchParams.get("sort") ?? "option1"}>
+                            <SelectTrigger className="w-full sm:w-[180px]">
+                                <SelectValue placeholder="Sort by" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="option1">Newest First</SelectItem>
+                                <SelectItem value="option2">Customer A–Z</SelectItem>
+                                <SelectItem value="option3">Water Type</SelectItem>
+                            </SelectContent>
+                        </Select>
+                    </div>
+                    <Button
+                        onClick={handleOpenSessionModal}
+                        className="w-full sm:w-auto bg-[#2FA9D9] hover:bg-[#2195c0] ml-auto"
+                    >
+                        <Plus className="w-4 h-4 sm:mr-1" />
+                        <span className="hidden sm:inline">Add an Entry</span>
+                        <span className="sm:hidden">Add</span>
+                    </Button>
+                </div>
+
+                {/* All Sessions List */}
+                <div className="p-4 sm:p-6">
+                    <Tabs value={sessionListTab} onValueChange={setSessionListTab} className="w-full mb-4">
+                        <TabsList className="grid grid-cols-3 w-full sm:w-[400px]">
+                            <TabsTrigger value="ongoing">Ongoing ({allSessions.filter(g => g.status === 'ongoing').length})</TabsTrigger>
+                            <TabsTrigger value="completed">Completed ({allSessions.filter(g => g.status === 'completed').length})</TabsTrigger>
+                            <TabsTrigger value="cancelled">Cancelled ({allSessions.filter(g => g.status === 'cancelled').length})</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+
+                    {allSessions.filter(group => group.status === sessionListTab).length === 0 ? (
+                        <div className="py-20 text-center">
+                            <Clock className="w-12 h-12 text-gray-200 mx-auto mb-4" />
+                            <h3 className="text-gray-500 font-medium">No sessions found</h3>
+                            <p className="text-gray-400 text-sm mt-1">Start a new session to begin logging orders.</p>
                         </div>
-                        <div className="w-full sm:w-auto">
-                            <Select onValueChange={handleSort} defaultValue={searchParams.get("sort") ?? "option1"}>
-                                <SelectTrigger className="w-full sm:w-[180px]">
-                                    <SelectValue placeholder="Sort by" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="option1">Newest First</SelectItem>
-                                    <SelectItem value="option2">Customer A–Z</SelectItem>
-                                    <SelectItem value="option3">Water Type</SelectItem>
-                                </SelectContent>
-                            </Select>
+                    ) : (
+                        <DataTable
+                            columns={sessionColumns}
+                            data={allSessions.filter(group => group.status === sessionListTab)}
+                            keyExtractor={(item) => item.sessionId}
+                            renderMobileItem={renderSessionMobileItem}
+                        />
+                    )}
+                </div>
+            </PageContainer>
+
+            {/* ── View Modal ── */}
+            <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
+                <DialogContent className="sm:max-w-md max-w-[95vw]">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg sm:text-xl">Order Details</DialogTitle>
+                    </DialogHeader>
+                    {selectedLog && (
+                        <div className="space-y-3 text-sm">
+                            <div className="flex justify-between border-b pb-2">
+                                <span className="text-gray-500">Date</span>
+                                <span className="text-right font-medium">
+                                    {format(new Date(selectedLog.log_date), "MMMM d, yyyy")}
+                                </span>
+                            </div>
+                            <div className="flex justify-between border-b pb-2">
+                                <span className="text-gray-500">Status</span>
+                                <StatusBadge status={selectedLog.status ?? "ongoing"} />
+                            </div>
+                            <div className="flex justify-between border-b pb-2">
+                                <span className="text-gray-500">Customer</span>
+                                <span className="text-right font-medium">{selectedLog.customer_name || "—"}</span>
+                            </div>
+                            {selectedLog.customer_address && (
+                                <div className="flex justify-between border-b pb-2">
+                                    <span className="text-gray-500">Address</span>
+                                    <span className="text-right text-gray-700 max-w-[60%]">{selectedLog.customer_address}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between border-b pb-2">
+                                <span className="text-gray-500">Container Type</span>
+                                <Badge value={selectedLog.container_type} labels={CONTAINER_LABELS} colors={CONTAINER_COLORS} />
+                            </div>
+                            <div className="flex justify-between border-b pb-2">
+                                <span className="text-gray-500">Quantity</span>
+                                <span className="font-medium">{selectedLog.quantity ?? 1} container{(selectedLog.quantity ?? 1) > 1 ? "s" : ""}</span>
+                            </div>
+                            <div className="flex justify-between border-b pb-2">
+                                <span className="text-gray-500">Water Type</span>
+                                <Badge value={selectedLog.water_type} labels={WATER_LABELS} colors={WATER_COLORS} />
+                            </div>
+                            {selectedLog.price_per_gallon && (
+                                <div className="flex justify-between border-b pb-2">
+                                    <span className="text-gray-500">Price per Gallon</span>
+                                    <span className="font-medium">₱{selectedLog.price_per_gallon}</span>
+                                </div>
+                            )}
+                            {selectedLog.total_gallons && (
+                                <div className="flex justify-between border-b pb-2">
+                                    <span className="text-gray-500">Total Gallons</span>
+                                    <span className="font-medium">{selectedLog.total_gallons} gal</span>
+                                </div>
+                            )}
+                            {selectedLog.total_price !== null && selectedLog.total_price !== undefined && (
+                                <div className="flex justify-between border-b pb-2">
+                                    <span className="text-gray-500">Total Price</span>
+                                    <span className="font-bold text-lg text-[#2FA9D9]">₱{selectedLog.total_price.toLocaleString()}</span>
+                                </div>
+                            )}
+                            <div className="flex justify-between border-b pb-2">
+                                <span className="text-gray-500">Payment Status</span>
+                                {(() => {
+                                    const sessionStatus = selectedLog.order_sessions?.status ?? null;
+                                    const paymentStatus =
+                                        sessionStatus === "completed" ? "paid"
+                                            : sessionStatus === "ongoing" ? "partial"
+                                                : "unpaid";
+                                    return <Badge value={paymentStatus} labels={PAYMENT_STATUS_LABELS} colors={PAYMENT_STATUS_COLORS} />;
+                                })()}
+                            </div>
+                            <div className="flex justify-between pb-2">
+                                <span className="text-gray-500">Fulfillment</span>
+                                <span className="font-medium">
+                                    {FULFILLMENT_LABELS[selectedLog.fulfillment_type] ?? selectedLog.fulfillment_type}
+                                </span>
+                            </div>
                         </div>
-                        <Button
-                            onClick={handleOpenSessionModal}
-                            className="w-full sm:w-auto bg-[#2FA9D9] hover:bg-[#2195c0] ml-auto"
-                        >
-                            <Plus className="w-4 h-4 sm:mr-1" />
-                            <span className="hidden sm:inline">Add an Entry</span>
-                            <span className="sm:hidden">Add</span>
+                    )}
+                    <DialogFooter>
+                        <Button type="button" variant="outline" onClick={() => setIsViewModalOpen(false)} className="w-full sm:w-auto">
+                            Close
                         </Button>
-                    </div>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
-                    {/* All Sessions List */}
-                    <div className="p-4 sm:p-6">
-                        <Tabs value={sessionListTab} onValueChange={setSessionListTab} className="w-full mb-4">
-                            <TabsList className="grid grid-cols-3 w-full sm:w-[400px]">
-                                <TabsTrigger value="ongoing">Ongoing ({allSessions.filter(g => g.status === 'ongoing').length})</TabsTrigger>
-                                <TabsTrigger value="completed">Completed ({allSessions.filter(g => g.status === 'completed').length})</TabsTrigger>
-                                <TabsTrigger value="cancelled">Cancelled ({allSessions.filter(g => g.status === 'cancelled').length})</TabsTrigger>
-                            </TabsList>
-                        </Tabs>
+            {/* ── Delete Modal ── */}
+            <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
+                <DialogContent className="sm:max-w-md max-w-[95vw]">
+                    <DialogHeader>
+                        <DialogTitle className="text-lg sm:text-xl">Delete Entry</DialogTitle>
+                    </DialogHeader>
+                    <p className="text-sm text-gray-600">
+                        This action cannot be undone. Are you sure you want to delete this log entry?
+                    </p>
+                    <DialogFooter className="flex-col sm:flex-row gap-2">
+                        <Button type="button" variant="outline" onClick={() => setIsDeleteModalOpen(false)} className="w-full sm:w-auto">
+                            Cancel
+                        </Button>
+                        <Button type="button" variant="destructive" onClick={handleDelete} disabled={isDeleting} className="w-full sm:w-auto">
+                            {isDeleting ? "Deleting…" : "Delete"}
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
-                        {allSessions.filter(group => group.status === sessionListTab).length === 0 ? (
-                            <div className="py-20 text-center">
-                                <Clock className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                                <h3 className="text-gray-500 font-medium">No sessions found</h3>
-                                <p className="text-gray-400 text-sm mt-1">Start a new session to begin logging orders.</p>
-                            </div>
-                        ) : (
-                            <DataTable
-                                columns={sessionColumns}
-                                data={allSessions.filter(group => group.status === sessionListTab)}
-                                keyExtractor={(item) => item.sessionId}
-                                renderMobileItem={renderSessionMobileItem}
-                            />
-                        )}
-                    </div>
-                </PageContainer>
-
-                {/* ── View Modal ── */}
-                <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-                    <DialogContent className="sm:max-w-md max-w-[95vw]">
-                        <DialogHeader>
-                            <DialogTitle className="text-lg sm:text-xl">Order Details</DialogTitle>
-                        </DialogHeader>
-                        {selectedLog && (
-                            <div className="space-y-3 text-sm">
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-gray-500">Date</span>
-                                    <span className="text-right font-medium">
-                                        {format(new Date(selectedLog.log_date), "MMMM d, yyyy")}
-                                    </span>
-                                </div>
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-gray-500">Status</span>
-                                    <StatusBadge status={selectedLog.status ?? "ongoing"} />
-                                </div>
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-gray-500">Customer</span>
-                                    <span className="text-right font-medium">{selectedLog.customer_name || "—"}</span>
-                                </div>
-                                {selectedLog.customer_address && (
-                                    <div className="flex justify-between border-b pb-2">
-                                        <span className="text-gray-500">Address</span>
-                                        <span className="text-right text-gray-700 max-w-[60%]">{selectedLog.customer_address}</span>
-                                    </div>
-                                )}
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-gray-500">Container Type</span>
-                                    <Badge value={selectedLog.container_type} labels={CONTAINER_LABELS} colors={CONTAINER_COLORS} />
-                                </div>
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-gray-500">Quantity</span>
-                                    <span className="font-medium">{selectedLog.quantity ?? 1} container{(selectedLog.quantity ?? 1) > 1 ? "s" : ""}</span>
-                                </div>
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-gray-500">Water Type</span>
-                                    <Badge value={selectedLog.water_type} labels={WATER_LABELS} colors={WATER_COLORS} />
-                                </div>
-                                {selectedLog.price_per_gallon && (
-                                    <div className="flex justify-between border-b pb-2">
-                                        <span className="text-gray-500">Price per Gallon</span>
-                                        <span className="font-medium">₱{selectedLog.price_per_gallon}</span>
-                                    </div>
-                                )}
-                                {selectedLog.total_gallons && (
-                                    <div className="flex justify-between border-b pb-2">
-                                        <span className="text-gray-500">Total Gallons</span>
-                                        <span className="font-medium">{selectedLog.total_gallons} gal</span>
-                                    </div>
-                                )}
-                                {selectedLog.total_price !== null && selectedLog.total_price !== undefined && (
-                                    <div className="flex justify-between border-b pb-2">
-                                        <span className="text-gray-500">Total Price</span>
-                                        <span className="font-bold text-lg text-[#2FA9D9]">₱{selectedLog.total_price.toLocaleString()}</span>
-                                    </div>
-                                )}
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-gray-500">Payment Method</span>
-                                    <Badge value={selectedLog.payment_method} labels={PAYMENT_LABELS} colors={PAYMENT_COLORS} />
-                                </div>
-                                <div className="flex justify-between pb-2">
-                                    <span className="text-gray-500">Fulfillment</span>
-                                    <span className="font-medium">
-                                        {FULFILLMENT_LABELS[selectedLog.fulfillment_type] ?? selectedLog.fulfillment_type}
-                                    </span>
-                                </div>
-                            </div>
-                        )}
-                        <DialogFooter>
-                            <Button type="button" variant="outline" onClick={() => setIsViewModalOpen(false)} className="w-full sm:w-auto">
-                                Close
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
-                {/* ── Delete Modal ── */}
-                <Dialog open={isDeleteModalOpen} onOpenChange={setIsDeleteModalOpen}>
-                    <DialogContent className="sm:max-w-md max-w-[95vw]">
-                        <DialogHeader>
-                            <DialogTitle className="text-lg sm:text-xl">Delete Entry</DialogTitle>
-                        </DialogHeader>
-                        <p className="text-sm text-gray-600">
-                            This action cannot be undone. Are you sure you want to delete this log entry?
-                        </p>
-                        <DialogFooter className="flex-col sm:flex-row gap-2">
-                            <Button type="button" variant="outline" onClick={() => setIsDeleteModalOpen(false)} className="w-full sm:w-auto">
-                                Cancel
-                            </Button>
-                            <Button type="button" variant="destructive" onClick={handleDelete} disabled={isDeleting} className="w-full sm:w-auto">
-                                {isDeleting ? "Deleting…" : "Delete"}
-                            </Button>
-                        </DialogFooter>
-                    </DialogContent>
-                </Dialog>
-
-                {/* ── Status Change Modal ── */}
-                <StatusModal
-                    open={isStatusModalOpen}
-                    onClose={() => setIsStatusModalOpen(false)}
-                    onConfirm={handleStatusChange}
-                    isLoading={isUpdatingStatus}
-                    targetStatus={pendingStatus}
-                    logName={selectedLog?.customer_name ?? "this order"}
-                />
+            {/* ── Status Change Modal ── */}
+            <StatusModal
+                open={isStatusModalOpen}
+                onClose={() => setIsStatusModalOpen(false)}
+                onConfirm={handleStatusChange}
+                isLoading={isUpdatingStatus}
+                targetStatus={pendingStatus}
+                logName={selectedLog?.customer_name ?? "this order"}
+            />
 
             {/* ── New Session Modal ── */}
             <Dialog open={isSessionModalOpen} onOpenChange={(open) => { if (!open) handleCancelSession(); }}>
@@ -1206,7 +1367,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                             onChange={(e) => setCustomerSearch(e.target.value)}
                                         />
                                     </div>
-                                    
+
                                     <div className="max-h-[350px] overflow-y-auto border border-gray-100 rounded-xl bg-white shadow-sm">
                                         {isLoadingCustomers ? (
                                             <div className="py-12 text-center text-sm text-gray-400">Loading customers…</div>
@@ -1346,25 +1507,46 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                     <Package className="w-5 h-5 text-[#2FA9D9]" />
                                     Session Details
                                 </DialogTitle>
-                                {selectedSessionForDetails && (
-                                    <div className="text-sm text-gray-500 mt-1 flex flex-col sm:flex-row sm:items-center gap-1 sm:gap-3">
-                                        <span className="font-mono text-[#2FA9D9]">{selectedSessionForDetails.sessionId}</span>
+                                {activeSessionDetails && (
+                                    <div className="text-sm text-gray-500 mt-1 flex flex-wrap items-center gap-1 sm:gap-3">
+                                        <span className="font-mono text-[#2FA9D9]">{activeSessionDetails.sessionId}</span>
                                         <span className="hidden sm:inline text-gray-300">•</span>
-                                        <span>{selectedSessionForDetails.address}</span>
+                                        <span>{activeSessionDetails.address}</span>
+                                        <span className="text-gray-300">•</span>
+                                        <span className="text-xs font-semibold px-2 py-0.5 bg-sky-50 text-sky-700 rounded-full border border-sky-100">
+                                            Status: {activeSessionDetails.paymentStatus}
+                                        </span>
+                                        <span className="text-xs font-semibold px-2 py-0.5 bg-amber-50 text-amber-700 rounded-full border border-amber-100">
+                                            Owed: ₱{activeSessionDetails.totalOwed}
+                                        </span>
+                                        <span className="text-xs font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
+                                            Paid: ₱{activeSessionDetails.totalPaid}
+                                        </span>
                                     </div>
                                 )}
                             </div>
-                            {selectedSessionForDetails && (
-                                <Button
-                                    variant="outline"
-                                    size="sm"
-                                    className="w-full sm:w-auto border border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5"
-                                    onClick={() => {
-                                        const { sessionId, address, logs } = selectedSessionForDetails;
-                                        const today = format(new Date(), "MMMM d, yyyy");
+                            {activeSessionDetails && (
+                                <div className="flex items-center gap-2">
+                                    {activeSessionDetails.paymentStatus !== "paid" && (
+                                        <Button
+                                            variant="default"
+                                            size="sm"
+                                            onClick={() => setIsPaymentModalOpen(true)}
+                                            className="bg-emerald-600 hover:bg-emerald-700 text-white w-full sm:w-auto"
+                                        >
+                                            Settle Balance
+                                        </Button>
+                                    )}
+                                    <Button
+                                        variant="outline"
+                                        size="sm"
+                                        className="w-full sm:w-auto border border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5"
+                                        onClick={() => {
+                                            const { sessionId, address, logs } = activeSessionDetails;
+                                            const today = format(new Date(), "MMMM d, yyyy");
 
-                                        // Generate HTML content for Word
-                                        const htmlContent = `
+                                            // Generate HTML content for Word
+                                            const htmlContent = `
                                             <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
                                             <head>
                                                 <meta charset='utf-8'>
@@ -1412,11 +1594,11 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                                     </thead>
                                                     <tbody>
                                                         ${logs.map(log => {
-                                            const quantity = log.quantity ?? 1;
-                                            const wType = log.water_type || "mineral";
-                                            const cType = log.container_type || "round";
-                                            const price = log.total_price ?? (quantity * 5 * (wType === "alkaline" ? 50 : 35));
-                                            return `
+                                                const quantity = log.quantity ?? 1;
+                                                const wType = log.water_type || "mineral";
+                                                const cType = log.container_type || "round";
+                                                const price = log.total_price ?? (quantity * 5 * (wType === "alkaline" ? 50 : 35));
+                                                return `
                                                                 <tr>
                                                                     <td>${format(new Date(log.log_date), "MMM d, yyyy")}</td>
                                                                     <td>${log.customer_name}</td>
@@ -1426,7 +1608,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                                                     <td>${log.status || "ongoing"}</td>
                                                                 </tr>
                                                             `;
-                                        }).join('')}
+                                            }).join('')}
                                                     </tbody>
                                                 </table>
 
@@ -1437,33 +1619,34 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                             </html>
                                         `;
 
-                                        const blob = new Blob(['\ufeff', htmlContent], {
-                                            type: 'application/msword'
-                                        });
+                                            const blob = new Blob(['\ufeff', htmlContent], {
+                                                type: 'application/msword'
+                                            });
 
-                                        const url = URL.createObjectURL(blob);
-                                        const link = document.createElement('a');
-                                        link.href = url;
-                                        link.download = `Session_Report_${sessionId}.doc`;
-                                        document.body.appendChild(link);
-                                        link.click();
-                                        document.body.removeChild(link);
-                                        URL.revokeObjectURL(url);
-                                    }}
-                                >
-                                    <Printer className="w-4 h-4 mr-2" />
-                                    Download Word Doc
-                                </Button>
+                                            const url = URL.createObjectURL(blob);
+                                            const link = document.createElement('a');
+                                            link.href = url;
+                                            link.download = `Session_Report_${sessionId}.doc`;
+                                            document.body.appendChild(link);
+                                            link.click();
+                                            document.body.removeChild(link);
+                                            URL.revokeObjectURL(url);
+                                        }}
+                                    >
+                                        <Printer className="w-4 h-4 mr-2" />
+                                        Download Word Doc
+                                    </Button>
+                                </div>
                             )}
                         </div>
                     </DialogHeader>
 
                     <div className="flex-1 overflow-y-auto bg-gray-50/10 relative">
-                        {selectedSessionForDetails && (
+                        {activeSessionDetails && (
                             (() => {
-                                const ongoing = selectedSessionForDetails.logs.filter(l => !l.status || l.status === "ongoing");
-                                const delivered = selectedSessionForDetails.logs.filter(l => l.status === "delivered");
-                                const cancelled = selectedSessionForDetails.logs.filter(l => l.status === "cancelled");
+                                const ongoing = activeSessionDetails.logs.filter(l => !l.status || l.status === "ongoing");
+                                const delivered = activeSessionDetails.logs.filter(l => l.status === "delivered");
+                                const cancelled = activeSessionDetails.logs.filter(l => l.status === "cancelled");
 
                                 return (
                                     <Tabs defaultValue="ongoing" className="w-full flex flex-col min-h-full">
@@ -1521,15 +1704,15 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                                     <div className="grid grid-cols-2 gap-8 mb-10 bg-gray-50 p-6 rounded-lg border border-gray-100 font-sans">
                                                         <div className="space-y-2">
                                                             <p className="text-[10px] text-gray-400 uppercase font-bold">Session Identity</p>
-                                                            <p className="text-sm font-mono text-[#2FA9D9] font-bold">{selectedSessionForDetails.sessionId}</p>
+                                                            <p className="text-sm font-mono text-[#2FA9D9] font-bold">{activeSessionDetails.sessionId}</p>
                                                             <p className="text-[10px] text-gray-400 uppercase font-bold mt-4">Generation Date</p>
                                                             <p className="text-sm font-medium">{format(new Date(), "MMMM d, yyyy")}</p>
                                                         </div>
                                                         <div className="space-y-2 text-right">
                                                             <p className="text-[10px] text-gray-400 uppercase font-bold">Delivery Location</p>
-                                                            <p className="text-sm leading-relaxed font-medium">{selectedSessionForDetails.address}</p>
+                                                            <p className="text-sm leading-relaxed font-medium">{activeSessionDetails.address}</p>
                                                             <p className="text-[10px] text-gray-400 uppercase font-bold mt-4">Volume Statistics</p>
-                                                            <p className="text-sm font-medium">{selectedSessionForDetails.logs.length} Total Orders</p>
+                                                            <p className="text-sm font-medium">{activeSessionDetails.logs.length} Total Orders</p>
                                                         </div>
                                                     </div>
 
@@ -1546,7 +1729,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                                                 </tr>
                                                             </thead>
                                                             <tbody className="divide-y divide-gray-100">
-                                                                {selectedSessionForDetails.logs.map((log, i) => {
+                                                                {activeSessionDetails.logs.map((log, i) => {
                                                                     const quantity = log.quantity ?? 1;
                                                                     const wType = log.water_type || "mineral";
                                                                     const cType = log.container_type || "round";
@@ -1591,6 +1774,16 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                 open={isTallyModalOpen}
                 onClose={() => setIsTallyModalOpen(false)}
                 logs={selectedSessionForTally?.logs ?? []}
+            />
+
+            {/* ── Payment Modal ── */}
+            <PaymentModal
+                open={isPaymentModalOpen}
+                onClose={() => setIsPaymentModalOpen(false)}
+                sessionGroup={activeSessionDetails}
+                onSuccess={() => {
+                    router.refresh();
+                }}
             />
 
             <PrintableOrders logs={initialData} />

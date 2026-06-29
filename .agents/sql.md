@@ -19,8 +19,6 @@ Daily operational logs for water refilling business
 | `fulfillment_type` | `text` |  Nullable |
 | `status` | `text` |  Nullable |
 | `session_id` | `text` |  Nullable |
-| `session_address` | `text` |  Nullable |
-| `session_status` | `text` |  Nullable |
 | `quantity` | `int4` |  Nullable |
 | `total_price` | `numeric` |  Nullable |
 | `total_gallons` | `numeric` |  Nullable |
@@ -42,8 +40,6 @@ Daily operational logs for water refilling business
 
 ## Table `water_logs`
 
-Daily operational meter readings for water production.
-
 ### Columns
 
 | Name | Type | Constraints |
@@ -52,6 +48,18 @@ Daily operational meter readings for water production.
 | `created_at` | `timestamptz` |  Nullable |
 | `log_date` | `date` |  |
 | `water_type` | `text` |  |
-| `start_reading` | `numeric` |  |
 | `end_reading` | `numeric` |  |
 | `notes` | `text` |  Nullable |
+| `start_reading` | `numeric` |  |
+
+## Table `order_sessions`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `text` | Primary |
+| `status` | `text` |  Nullable |
+| `address` | `text` |  Nullable |
+| `created_at` | `timestamptz` |  Nullable |
+

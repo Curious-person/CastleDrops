@@ -12,7 +12,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
-import { createLogsBulk } from "@/app/actions/logs";
+import { createOrderAndRecordPayment } from "@/app/actions/payments";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -232,8 +232,8 @@ function MultiStepForm() {
             const log_date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
 
             const activeItems = formData.items.filter(item => item.quantity > 0);
-            
-            const newLogs = activeItems.map(item => {
+
+            const orderRows = activeItems.map(item => {
                 const gallons = CONTAINER_GALLONS[item.container_type];
                 const pricePerGallon = WATER_PRICE_PER_GALLON[item.water_type];
                 const total_gallons = item.quantity * item.water_quantity * gallons;
@@ -250,15 +250,23 @@ function MultiStepForm() {
                     customer_id: formData.customer_id,
                     customer_name: formData.customer_name,
                     customer_address: formData.customer_address,
-                    payment_method: formData.payment_method,
                     fulfillment_type: formData.fulfillment_type,
                     status: formData.initial_status,
-                    session_id: sessionId,
-                    session_address: sessionAddress,
                 };
             });
 
-            const result = await createLogsBulk(newLogs);
+            const totalOrderPrice = calculateTotalPrice();
+            // 'credit' = customer owes; record ₱0 so balance stays positive
+            const initialPaymentAmount = formData.payment_method === "credit" ? 0 : totalOrderPrice;
+
+            const result = await createOrderAndRecordPayment(
+                { id: sessionId ?? `session-${Date.now()}`, address: formData.customer_address },
+                orderRows,
+                initialPaymentAmount,
+                formData.payment_method ?? "cash",
+                undefined
+            );
+
             if (result.success) {
                 // Clear any leftover client-side staged storage
                 sessionStorage.removeItem("staged_session_logs");
