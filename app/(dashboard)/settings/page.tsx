@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import {
   User, Store, DollarSign, Shield, LogOut, Trash2, CheckCircle2,
   AlertTriangle, Save, RefreshCw, KeyRound, Bell, Phone,
@@ -14,20 +15,25 @@ import { Separator } from "@/components/ui/separator";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle
 } from "@/components/ui/dialog";
+import { getSettings, updateStationSettings, updateUserProfile } from "@/app/actions/settings";
+import { logout, updateUserPassword } from "@/app/actions/auth";
 
 type TabId = "account" | "station" | "pricing" | "security";
 
 export default function SettingsPage() {
+  const router = useRouter();
   const [activeTab, setActiveTab] = useState<TabId>("account");
+  const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // ─── STATE FIELDS ───
   // Account settings state
   const [accountInfo, setAccountInfo] = useState({
-    name: "Jose Dela Cruz",
-    email: "jose.delacruz@castledrops.com",
-    phone: "0917 123 4567",
+    name: "",
+    email: "",
+    phone: "",
     role: "Station Manager",
     smsSummary: true,
     emailAlerts: true
@@ -35,11 +41,11 @@ export default function SettingsPage() {
 
   // Station settings state
   const [stationInfo, setStationInfo] = useState({
-    name: "Castle Drops Ermita Hub",
-    hotline: "0917 888 8888",
-    address: "123 Mabini St, Barangay 667, Ermita, Manila",
-    hours: "8:00 AM - 6:00 PM",
-    license: "WD-2026-0428"
+    name: "",
+    hotline: "",
+    address: "",
+    hours: "",
+    license: ""
   });
 
   // Pricing rates settings state
@@ -62,23 +68,144 @@ export default function SettingsPage() {
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [simulatedActionMessage, setSimulatedActionMessage] = useState<string | null>(null);
 
-  // Trigger Save simulation
-  const handleSaveChanges = (e: React.FormEvent, panelName: string) => {
+  // Load Settings on mount
+  useEffect(() => {
+    async function loadSettings() {
+      try {
+        setIsLoading(true);
+        setErrorMessage(null);
+        const data = await getSettings();
+        
+        setAccountInfo({
+          name: data.profile.name,
+          email: data.auth.email,
+          phone: data.profile.phone,
+          role: data.auth.role,
+          smsSummary: data.profile.sms_summary,
+          emailAlerts: data.profile.email_alerts,
+        });
+
+        setStationInfo({
+          name: data.stationSettings.name,
+          hotline: data.stationSettings.hotline,
+          address: data.stationSettings.address,
+          hours: data.stationSettings.hours,
+          license: data.stationSettings.license,
+        });
+
+        setRatesInfo({
+          alkalineRound: data.stationSettings.alkaline_round,
+          alkalineFlat: data.stationSettings.alkaline_flat,
+          mineralRound: data.stationSettings.mineral_round,
+          mineralFlat: data.stationSettings.mineral_flat,
+        });
+      } catch (err: unknown) {
+        const message = err instanceof Error ? err.message : "Failed to load settings from server.";
+        setErrorMessage(message);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+    loadSettings();
+  }, []);
+
+  // Save Account Profile
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsSaving(true);
     setSaveSuccess(null);
+    setErrorMessage(null);
 
-    // Simulate server saving action
-    setTimeout(() => {
+    try {
+      const result = await updateUserProfile({
+        name: accountInfo.name,
+        phone: accountInfo.phone || null,
+        sms_summary: accountInfo.smsSummary,
+        email_alerts: accountInfo.emailAlerts,
+        email: accountInfo.email,
+      });
+
+      if (result.success) {
+        setSaveSuccess("Account Profile settings updated successfully!");
+        setTimeout(() => setSaveSuccess(null), 4000);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update profile settings.";
+      setErrorMessage(message);
+      setTimeout(() => setErrorMessage(null), 4000);
+    } finally {
       setIsSaving(false);
-      setSaveSuccess(`${panelName} settings updated successfully!`);
-      // Auto clear alert
-      setTimeout(() => setSaveSuccess(null), 4000);
-    }, 800);
+    }
   };
 
-  // Trigger password update simulation
-  const handleUpdatePassword = (e: React.FormEvent) => {
+  // Save Station Configuration
+  const handleSaveStationConfig = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setSaveSuccess(null);
+    setErrorMessage(null);
+
+    try {
+      const result = await updateStationSettings({
+        name: stationInfo.name,
+        hotline: stationInfo.hotline,
+        address: stationInfo.address,
+        hours: stationInfo.hours,
+        license: stationInfo.license,
+        alkaline_round: Number(ratesInfo.alkalineRound),
+        alkaline_flat: Number(ratesInfo.alkalineFlat),
+        mineral_round: Number(ratesInfo.mineralRound),
+        mineral_flat: Number(ratesInfo.mineralFlat),
+      });
+
+      if (result.success) {
+        setSaveSuccess("Station Configuration settings updated successfully!");
+        setTimeout(() => setSaveSuccess(null), 4000);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update station configuration.";
+      setErrorMessage(message);
+      setTimeout(() => setErrorMessage(null), 4000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Save Pricing Rates
+  const handleSavePricing = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    setSaveSuccess(null);
+    setErrorMessage(null);
+
+    try {
+      const result = await updateStationSettings({
+        name: stationInfo.name,
+        hotline: stationInfo.hotline,
+        address: stationInfo.address,
+        hours: stationInfo.hours,
+        license: stationInfo.license,
+        alkaline_round: Number(ratesInfo.alkalineRound),
+        alkaline_flat: Number(ratesInfo.alkalineFlat),
+        mineral_round: Number(ratesInfo.mineralRound),
+        mineral_flat: Number(ratesInfo.mineralFlat),
+      });
+
+      if (result.success) {
+        setSaveSuccess("Product Pricing settings updated successfully!");
+        setTimeout(() => setSaveSuccess(null), 4000);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update pricing rates.";
+      setErrorMessage(message);
+      setTimeout(() => setErrorMessage(null), 4000);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  // Trigger password update
+  const handleUpdatePassword = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!passwordInfo.current || !passwordInfo.new || !passwordInfo.confirm) {
       alert("Please fill in all password fields.");
@@ -91,20 +218,46 @@ export default function SettingsPage() {
 
     setIsSaving(true);
     setSaveSuccess(null);
+    setErrorMessage(null);
 
-    setTimeout(() => {
+    try {
+      const result = await updateUserPassword(passwordInfo.new);
+      if (result.error) {
+        setErrorMessage(result.error);
+      } else {
+        setSaveSuccess("Security credentials updated successfully. Please log back in.");
+        setPasswordInfo({ current: "", new: "", confirm: "" });
+        setTimeout(() => {
+          router.push("/login");
+        }, 2000);
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to update password.";
+      setErrorMessage(message);
+    } finally {
       setIsSaving(false);
-      setSaveSuccess("Security credentials updated successfully.");
-      setPasswordInfo({ current: "", new: "", confirm: "" });
-      setTimeout(() => setSaveSuccess(null), 4000);
-    }, 800);
+    }
   };
 
-  // Simulated Logout
-  const handleLogoutConfirm = () => {
+  // Logout confirm handler
+  const handleLogoutConfirm = async () => {
     setShowLogoutModal(false);
-    setSimulatedActionMessage("Session terminated. Redirecting to login... (Simulated)");
-    setTimeout(() => setSimulatedActionMessage(null), 4000);
+    setIsSaving(true);
+    setErrorMessage(null);
+
+    try {
+      const result = await logout();
+      if (result.error) {
+        setErrorMessage(result.error);
+      } else {
+        router.push("/login");
+      }
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Failed to sign out of session.";
+      setErrorMessage(message);
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   // Simulated Account Deletion
@@ -122,17 +275,38 @@ export default function SettingsPage() {
     { id: "security" as TabId, label: "Security & Session", icon: Shield, description: "Danger zone & session tools" }
   ];
 
+  if (isLoading) {
+    return (
+      <PageContainer title="Settings">
+        <div className="flex flex-col items-center justify-center min-h-[450px]">
+          <RefreshCw className="w-8 h-8 text-[#2FA9D9] animate-spin" />
+          <p className="text-sm text-gray-500 mt-4">Loading configuration...</p>
+        </div>
+      </PageContainer>
+    );
+  }
+
   return (
     <PageContainer title="Settings">
       <div className="p-4 sm:p-6 lg:p-8 space-y-6">
         
-        {/* ─── ACTION BANNER (SIMULATED OR SAVED STATES) ─── */}
+        {/* ─── ACTION BANNER ─── */}
         {saveSuccess && (
           <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-xl p-4 flex items-start gap-3 transition-all duration-300">
             <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
             <div>
               <p className="font-semibold text-sm">Success</p>
               <p className="text-xs text-emerald-700/90 mt-0.5">{saveSuccess}</p>
+            </div>
+          </div>
+        )}
+
+        {errorMessage && (
+          <div className="bg-rose-50 border border-rose-200 text-rose-800 rounded-xl p-4 flex items-start gap-3 transition-all duration-300">
+            <AlertTriangle className="w-5 h-5 text-rose-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-semibold text-sm">Error</p>
+              <p className="text-xs text-rose-700/90 mt-0.5">{errorMessage}</p>
             </div>
           </div>
         )}
@@ -162,6 +336,7 @@ export default function SettingsPage() {
                   onClick={() => {
                     setActiveTab(tab.id);
                     setSaveSuccess(null);
+                    setErrorMessage(null);
                   }}
                   className={`flex items-center gap-3 px-4 py-3 rounded-lg text-left transition-colors whitespace-nowrap lg:whitespace-normal w-auto lg:w-full shrink-0 cursor-pointer outline-none ${
                     isActive
@@ -187,7 +362,7 @@ export default function SettingsPage() {
             
             {/* ─── T1: ACCOUNT PROFILE TAB ─── */}
             {activeTab === "account" && (
-              <form onSubmit={(e) => handleSaveChanges(e, "Account Profile")} className="space-y-6">
+              <form onSubmit={handleSaveProfile} className="space-y-6">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                     <User className="w-5 h-5 text-[#2FA9D9]" />
@@ -202,7 +377,7 @@ export default function SettingsPage() {
                 {/* Avatar Uploader Placeholder */}
                 <div className="flex flex-col sm:flex-row items-center gap-4 bg-gray-50/40 p-4 rounded-xl border border-gray-100">
                   <div className="w-16 h-16 rounded-full bg-[#2FA9D9]/10 border border-[#2FA9D9]/20 flex items-center justify-center text-[#2FA9D9] text-xl font-bold font-mono">
-                    JD
+                    {accountInfo.name ? accountInfo.name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase() : "JD"}
                   </div>
                   <div className="text-center sm:text-left space-y-1">
                     <p className="text-sm font-semibold text-gray-800">Profile Photo</p>
@@ -227,6 +402,7 @@ export default function SettingsPage() {
                       required
                       value={accountInfo.name}
                       onChange={(e) => setAccountInfo((p) => ({ ...p, name: e.target.value }))}
+                      disabled={isSaving}
                     />
                   </div>
 
@@ -239,6 +415,7 @@ export default function SettingsPage() {
                       required
                       value={accountInfo.email}
                       onChange={(e) => setAccountInfo((p) => ({ ...p, email: e.target.value }))}
+                      disabled={isSaving}
                     />
                   </div>
 
@@ -251,6 +428,7 @@ export default function SettingsPage() {
                       required
                       value={accountInfo.phone}
                       onChange={(e) => setAccountInfo((p) => ({ ...p, phone: e.target.value }))}
+                      disabled={isSaving}
                     />
                   </div>
 
@@ -280,6 +458,7 @@ export default function SettingsPage() {
                         checked={accountInfo.smsSummary}
                         onChange={(e) => setAccountInfo((p) => ({ ...p, smsSummary: e.target.checked }))}
                         className="mt-1 rounded border-gray-300 text-[#2FA9D9] focus:ring-[#2FA9D9]"
+                        disabled={isSaving}
                       />
                       <div>
                         <span className="text-sm font-medium text-gray-800 group-hover:text-gray-900">SMS Daily Ledger Report</span>
@@ -293,6 +472,7 @@ export default function SettingsPage() {
                         checked={accountInfo.emailAlerts}
                         onChange={(e) => setAccountInfo((p) => ({ ...p, emailAlerts: e.target.checked }))}
                         className="mt-1 rounded border-gray-300 text-[#2FA9D9] focus:ring-[#2FA9D9]"
+                        disabled={isSaving}
                       />
                       <div>
                         <span className="text-sm font-medium text-gray-800 group-hover:text-gray-900">High Variance Email Alerts</span>
@@ -326,7 +506,7 @@ export default function SettingsPage() {
 
             {/* ─── T2: WATER STATION CONFIG TAB ─── */}
             {activeTab === "station" && (
-              <form onSubmit={(e) => handleSaveChanges(e, "Station Configuration")} className="space-y-6">
+              <form onSubmit={handleSaveStationConfig} className="space-y-6">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                     <Store className="w-5 h-5 text-[#2FA9D9]" />
@@ -347,6 +527,7 @@ export default function SettingsPage() {
                       required
                       value={stationInfo.name}
                       onChange={(e) => setStationInfo((p) => ({ ...p, name: e.target.value }))}
+                      disabled={isSaving}
                     />
                   </div>
 
@@ -358,6 +539,7 @@ export default function SettingsPage() {
                       required
                       value={stationInfo.address}
                       onChange={(e) => setStationInfo((p) => ({ ...p, address: e.target.value }))}
+                      disabled={isSaving}
                     />
                   </div>
 
@@ -371,6 +553,7 @@ export default function SettingsPage() {
                         value={stationInfo.hotline}
                         onChange={(e) => setStationInfo((p) => ({ ...p, hotline: e.target.value }))}
                         className="pl-9"
+                        disabled={isSaving}
                       />
                       <Phone className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     </div>
@@ -386,6 +569,7 @@ export default function SettingsPage() {
                         value={stationInfo.hours}
                         onChange={(e) => setStationInfo((p) => ({ ...p, hours: e.target.value }))}
                         className="pl-9"
+                        disabled={isSaving}
                       />
                       <Clock className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     </div>
@@ -400,6 +584,7 @@ export default function SettingsPage() {
                         value={stationInfo.license}
                         onChange={(e) => setStationInfo((p) => ({ ...p, license: e.target.value }))}
                         className="pl-9"
+                        disabled={isSaving}
                       />
                       <FileCheck2 className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
                     </div>
@@ -430,7 +615,7 @@ export default function SettingsPage() {
 
             {/* ─── T3: PRODUCT PRICING TAB ─── */}
             {activeTab === "pricing" && (
-              <form onSubmit={(e) => handleSaveChanges(e, "Product Pricing")} className="space-y-6">
+              <form onSubmit={handleSavePricing} className="space-y-6">
                 <div>
                   <h2 className="text-lg font-bold text-gray-900 flex items-center gap-2">
                     <DollarSign className="w-5 h-5 text-[#2FA9D9]" />
@@ -460,6 +645,7 @@ export default function SettingsPage() {
                           value={ratesInfo.alkalineRound}
                           onChange={(e) => setRatesInfo((p) => ({ ...p, alkalineRound: e.target.value }))}
                           className="pl-8"
+                          disabled={isSaving}
                         />
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
                       </div>
@@ -476,6 +662,7 @@ export default function SettingsPage() {
                           value={ratesInfo.alkalineFlat}
                           onChange={(e) => setRatesInfo((p) => ({ ...p, alkalineFlat: e.target.value }))}
                           className="pl-8"
+                          disabled={isSaving}
                         />
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
                       </div>
@@ -503,6 +690,7 @@ export default function SettingsPage() {
                           value={ratesInfo.mineralRound}
                           onChange={(e) => setRatesInfo((p) => ({ ...p, mineralRound: e.target.value }))}
                           className="pl-8"
+                          disabled={isSaving}
                         />
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
                       </div>
@@ -519,6 +707,7 @@ export default function SettingsPage() {
                           value={ratesInfo.mineralFlat}
                           onChange={(e) => setRatesInfo((p) => ({ ...p, mineralFlat: e.target.value }))}
                           className="pl-8"
+                          disabled={isSaving}
                         />
                         <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₱</span>
                       </div>
@@ -586,6 +775,7 @@ export default function SettingsPage() {
                         placeholder="••••••••"
                         value={passwordInfo.current}
                         onChange={(e) => setPasswordInfo((p) => ({ ...p, current: e.target.value }))}
+                        disabled={isSaving}
                       />
                     </div>
                     <div className="space-y-2">
@@ -597,6 +787,7 @@ export default function SettingsPage() {
                         placeholder="Min. 8 characters"
                         value={passwordInfo.new}
                         onChange={(e) => setPasswordInfo((p) => ({ ...p, new: e.target.value }))}
+                        disabled={isSaving}
                       />
                     </div>
                     <div className="space-y-2">
@@ -608,11 +799,12 @@ export default function SettingsPage() {
                         placeholder="Confirm password"
                         value={passwordInfo.confirm}
                         onChange={(e) => setPasswordInfo((p) => ({ ...p, confirm: e.target.value }))}
+                        disabled={isSaving}
                       />
                     </div>
                   </div>
                   <div className="flex justify-end pt-2">
-                    <Button type="submit" variant="outline" className="border-gray-200 hover:text-[#2FA9D9] w-full sm:w-auto">
+                    <Button type="submit" variant="outline" className="border-gray-200 hover:text-[#2FA9D9] w-full sm:w-auto" disabled={isSaving}>
                       Update Password
                     </Button>
                   </div>
@@ -643,6 +835,7 @@ export default function SettingsPage() {
                         variant="outline"
                         onClick={() => setShowLogoutModal(true)}
                         className="w-full text-rose-600 hover:text-rose-700 border-gray-200 hover:bg-rose-50/20"
+                        disabled={isSaving}
                       >
                         Log Out Session
                       </Button>
@@ -662,6 +855,7 @@ export default function SettingsPage() {
                         type="button"
                         onClick={() => setShowDeleteModal(true)}
                         className="w-full bg-rose-600 hover:bg-rose-700 text-white border-none"
+                        disabled={isSaving}
                       >
                         Delete Station Account
                       </Button>
@@ -696,14 +890,16 @@ export default function SettingsPage() {
               variant="outline"
               onClick={() => setShowLogoutModal(false)}
               className="w-full sm:w-auto"
+              disabled={isSaving}
             >
               Cancel
             </Button>
             <Button
               onClick={handleLogoutConfirm}
               className="bg-rose-600 hover:bg-rose-700 text-white w-full sm:w-auto"
+              disabled={isSaving}
             >
-              Yes, Log Out
+              {isSaving ? "Signing Out..." : "Yes, Log Out"}
             </Button>
           </DialogFooter>
         </DialogContent>

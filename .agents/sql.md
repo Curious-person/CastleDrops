@@ -15,7 +15,6 @@ Daily operational logs for water refilling business
 | `customer_id` | `uuid` |  Nullable |
 | `customer_name` | `text` |  Nullable |
 | `customer_address` | `text` |  Nullable |
-| `payment_method` | `text` |  Nullable |
 | `fulfillment_type` | `text` |  Nullable |
 | `status` | `text` |  Nullable |
 | `session_id` | `text` |  Nullable |
@@ -62,4 +61,49 @@ Daily operational logs for water refilling business
 | `status` | `text` |  Nullable |
 | `address` | `text` |  Nullable |
 | `created_at` | `timestamptz` |  Nullable |
+
+## Table `payments`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `session_id` | `text` |  Nullable |
+| `amount` | `numeric` |  |
+| `method` | `text` |  |
+| `reference_number` | `text` |  Nullable |
+| `paid_at` | `timestamptz` |  Nullable |
+| `recorded_by` | `uuid` |  Nullable |
+
+## Table `station_settings`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `int4` | Primary |
+| `name` | `text` |  |
+| `hotline` | `text` |  |
+| `address` | `text` |  |
+| `hours` | `text` |  |
+| `license` | `text` |  |
+| `alkaline_round` | `numeric` |  |
+| `alkaline_flat` | `numeric` |  |
+| `mineral_round` | `numeric` |  |
+| `mineral_flat` | `numeric` |  |
+| `updated_at` | `timestamptz` |  Nullable |
+
+## Table `profiles`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `name` | `text` |  |
+| `phone` | `text` |  Nullable |
+| `sms_summary` | `bool` |  |
+| `email_alerts` | `bool` |  |
+| `updated_at` | `timestamptz` |  Nullable |
 

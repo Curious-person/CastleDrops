@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import {
@@ -13,6 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { format } from "date-fns";
 import { createOrderAndRecordPayment } from "@/app/actions/payments";
+import { getStationPricing } from "@/app/actions/settings";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,9 +47,18 @@ const CONTAINER_GALLONS: Record<ContainerType, number> = {
     flat: 5,
 };
 
-const WATER_PRICE_PER_GALLON: Record<WaterType, number> = {
-    alkaline: 50,
-    mineral: 35,
+interface PricingRates {
+    alkaline_round: number;
+    alkaline_flat: number;
+    mineral_round: number;
+    mineral_flat: number;
+}
+
+const DEFAULT_RATES: PricingRates = {
+    alkaline_round: 50,
+    alkaline_flat: 45,
+    mineral_round: 40,
+    mineral_flat: 35,
 };
 
 // ─── Step Config ──────────────────────────────────────────────────────────────
@@ -168,6 +178,30 @@ function MultiStepForm() {
     const router = useRouter();
     const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [rates, setRates] = useState<PricingRates>(DEFAULT_RATES);
+
+    useEffect(() => {
+        let active = true;
+        async function loadRates() {
+            try {
+                const data = await getStationPricing();
+                if (active) {
+                    setRates(data);
+                }
+            } catch (error) {
+                console.error("Failed to load pricing from settings:", error);
+            }
+        }
+        loadRates();
+        return () => {
+            active = false;
+        };
+    }, []);
+
+    const getRate = (waterType: WaterType, containerType: ContainerType): number => {
+        const key = `${waterType}_${containerType}` as const;
+        return rates[key] ?? DEFAULT_RATES[key];
+    };
 
     const searchParams = useSearchParams();
     const sessionId = searchParams.get("sessionId");
@@ -206,9 +240,8 @@ function MultiStepForm() {
     };
 
     const calculateItemPrice = (item: OrderItem): number => {
-        const gallons = CONTAINER_GALLONS[item.container_type];
-        const pricePerGallon = WATER_PRICE_PER_GALLON[item.water_type];
-        return item.quantity * item.water_quantity * gallons * pricePerGallon;
+        const rate = getRate(item.water_type, item.container_type);
+        return item.quantity * item.water_quantity * rate;
     };
 
     const calculateTotalPrice = (): number => {
@@ -235,9 +268,10 @@ function MultiStepForm() {
 
             const orderRows = activeItems.map(item => {
                 const gallons = CONTAINER_GALLONS[item.container_type];
-                const pricePerGallon = WATER_PRICE_PER_GALLON[item.water_type];
+                const rate = getRate(item.water_type, item.container_type);
+                const pricePerGallon = rate / gallons;
                 const total_gallons = item.quantity * item.water_quantity * gallons;
-                const total_price = item.quantity * item.water_quantity * gallons * pricePerGallon;
+                const total_price = item.quantity * item.water_quantity * rate;
 
                 return {
                     log_date,
@@ -378,7 +412,8 @@ function MultiStepForm() {
                                         {formData.items.map((item, index) => {
                                             const isSelected = item.quantity > 0;
                                             const Icon = item.water_type === "alkaline" ? Droplet : Waves;
-                                            const pricePerGallon = WATER_PRICE_PER_GALLON[item.water_type];
+                                            const rate = getRate(item.water_type, item.container_type);
+                                            const pricePerGallon = rate / CONTAINER_GALLONS[item.container_type];
                                             const totalGal = item.quantity * item.water_quantity * CONTAINER_GALLONS[item.container_type];
                                             const itemPrice = calculateItemPrice(item);
 
@@ -409,14 +444,14 @@ function MultiStepForm() {
                                                         </div>
 
                                                         {/* Quantity Counter for Containers */}
-                                                        <div className="flex items-center justify-between gap-3 py-2 border-b border-gray-100/50">
+                                                        <div className="flex flex-col gap-2 py-2 border-b border-gray-100/50">
                                                             <span className="text-xs text-gray-600 font-semibold">Containers:</span>
                                                             <div className="flex items-center gap-1.5">
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => setFormData((p) => {
                                                                         const items = [...p.items];
-                                                                        items[index].quantity = Math.max(0, items[index].quantity - 1);
+                                                                        items[index] = { ...items[index], quantity: Math.max(0, items[index].quantity - 1) };
                                                                         return { ...p, items };
                                                                     })}
                                                                     className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-bold text-xs"
@@ -431,7 +466,7 @@ function MultiStepForm() {
                                                                         const val = Math.max(0, parseInt(e.target.value) || 0);
                                                                         setFormData((p) => {
                                                                             const items = [...p.items];
-                                                                            items[index].quantity = val;
+                                                                            items[index] = { ...items[index], quantity: val };
                                                                             return { ...p, items };
                                                                         });
                                                                     }}
@@ -441,7 +476,7 @@ function MultiStepForm() {
                                                                     type="button"
                                                                     onClick={() => setFormData((p) => {
                                                                         const items = [...p.items];
-                                                                        items[index].quantity += 1;
+                                                                        items[index] = { ...items[index], quantity: items[index].quantity + 1 };
                                                                         return { ...p, items };
                                                                     })}
                                                                     className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-bold text-xs"
@@ -453,14 +488,14 @@ function MultiStepForm() {
 
                                                         {/* Refills Counter */}
                                                         {item.quantity > 0 && (
-                                                            <div className="flex items-center justify-between gap-3 py-2 animate-in fade-in slide-in-from-top-1">
+                                                            <div className="flex flex-col gap-2 py-2 animate-in fade-in slide-in-from-top-1">
                                                                 <span className="text-xs text-gray-600 font-semibold">Refills:</span>
                                                                 <div className="flex items-center gap-1.5">
                                                                     <button
                                                                         type="button"
                                                                         onClick={() => setFormData((p) => {
                                                                             const items = [...p.items];
-                                                                            items[index].water_quantity = Math.max(1, items[index].water_quantity - 1);
+                                                                            items[index] = { ...items[index], water_quantity: Math.max(1, items[index].water_quantity - 1) };
                                                                             return { ...p, items };
                                                                         })}
                                                                         className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-bold text-xs"
@@ -475,7 +510,7 @@ function MultiStepForm() {
                                                                             const val = Math.max(1, parseInt(e.target.value) || 1);
                                                                             setFormData((p) => {
                                                                                 const items = [...p.items];
-                                                                                items[index].water_quantity = val;
+                                                                                items[index] = { ...items[index], water_quantity: val };
                                                                                 return { ...p, items };
                                                                             });
                                                                         }}
@@ -485,7 +520,7 @@ function MultiStepForm() {
                                                                         type="button"
                                                                         onClick={() => setFormData((p) => {
                                                                             const items = [...p.items];
-                                                                            items[index].water_quantity += 1;
+                                                                            items[index] = { ...items[index], water_quantity: items[index].water_quantity + 1 };
                                                                             return { ...p, items };
                                                                         })}
                                                                         className="w-7 h-7 rounded-lg bg-white border border-gray-200 flex items-center justify-center text-gray-600 hover:bg-gray-100 transition-colors font-bold text-xs"
