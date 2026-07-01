@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   User, Store, DollarSign, Shield, LogOut, Trash2, CheckCircle2,
   AlertTriangle, Save, RefreshCw, KeyRound, Bell, Phone,
-  Clock, ShieldAlert, BadgeCheck, FileCheck2, ImagePlus
+  Clock, ShieldAlert, BadgeCheck, FileCheck2, ImagePlus, Mail
 } from "lucide-react";
 import PageContainer from "@/components/PageContainer";
 import { Button } from "@/components/ui/button";
@@ -51,10 +51,10 @@ export default function SettingsPage() {
 
   // Pricing rates settings state
   const [ratesInfo, setRatesInfo] = useState({
-    alkalineRound: "50.00",
-    alkalineFlat: "45.00",
-    mineralRound: "40.00",
-    mineralFlat: "35.00"
+    alkalineRound: "10.00",
+    alkalineFlat: "9.00",
+    mineralRound: "8.00",
+    mineralFlat: "7.00"
   });
 
   // Security settings state
@@ -376,21 +376,29 @@ export default function SettingsPage() {
                 </div>
                 <Separator className="bg-gray-100" />
 
-                {/* Avatar Uploader Placeholder */}
-                <div className="flex flex-col sm:flex-row items-center gap-4 bg-gray-50/40 p-4 rounded-xl border border-gray-100">
-                  <div className="w-16 h-16 rounded-full bg-[#2FA9D9]/10 border border-[#2FA9D9]/20 flex items-center justify-center text-[#2FA9D9] text-xl font-bold font-mono">
+                {/* Profile Snapshot */}
+                <div className="flex flex-col sm:flex-row items-center sm:items-start gap-5 bg-white p-5 rounded-xl border border-gray-200">
+                  <div className="w-16 h-16 rounded-full bg-[#2FA9D9]/10 border border-[#2FA9D9]/30 flex items-center justify-center text-[#2FA9D9] text-xl font-bold font-mono shrink-0">
                     {accountInfo.name ? accountInfo.name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase() : "JD"}
                   </div>
-                  <div className="text-center sm:text-left space-y-1">
-                    <p className="text-sm font-semibold text-gray-800">Profile Photo</p>
-                    <p className="text-[11px] text-gray-400">JPG, PNG or WEBP. Max 2MB.</p>
-                    <div className="flex gap-2 mt-1 justify-center sm:justify-start">
-                      <Button type="button" variant="outline" size="xs" className="text-xs text-gray-600">
-                        Upload
-                      </Button>
-                      <Button type="button" variant="ghost" size="xs" className="text-xs text-rose-600 hover:text-rose-700 hover:bg-rose-50/30">
-                        Remove
-                      </Button>
+                  <div className="text-center sm:text-left space-y-2 w-full">
+                    <div>
+                      <p className="text-lg font-bold text-gray-900">{accountInfo.name || "User Name"}</p>
+                      <div className="mt-1">
+                        <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[10px] font-bold px-2.5 py-0.5 rounded-full border border-emerald-200">
+                          <BadgeCheck className="w-3 h-3 text-emerald-600" /> {accountInfo.role}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-3 sm:gap-6 pt-3 border-t border-gray-100">
+                      <div className="flex items-center justify-center sm:justify-start gap-2 text-sm text-gray-600 font-medium">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        {accountInfo.email || "No email provided"}
+                      </div>
+                      <div className="flex items-center justify-center sm:justify-start gap-2 text-sm text-gray-600 font-medium">
+                        <Phone className="w-4 h-4 text-gray-400" />
+                        {accountInfo.phone || "No phone provided"}
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -624,7 +632,7 @@ export default function SettingsPage() {
                     Product Pricing Rates
                   </h2>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Set baseline refill rates for water types and container shapes. Changes dynamically apply to POS calculations.
+                    Set baseline refill rates for water types and container shapes. Pricing should be based on a per-gallon rate. Changes dynamically apply to POS calculations.
                   </p>
                 </div>
                 <Separator className="bg-gray-100" />
@@ -637,7 +645,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="alkaline_round" className="text-xs font-semibold text-gray-700">Round Container Rate (₱)</Label>
+                      <Label htmlFor="alkaline_round" className="text-xs font-semibold text-gray-700">Round Container Rate (₱ / Gallon)</Label>
                       <div className="relative">
                         <Input
                           id="alkaline_round"
@@ -654,7 +662,7 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="alkaline_flat" className="text-xs font-semibold text-gray-700">Slim / Flat Container Rate (₱)</Label>
+                      <Label htmlFor="alkaline_flat" className="text-xs font-semibold text-gray-700">Slim / Flat Container Rate (₱ / Gallon)</Label>
                       <div className="relative">
                         <Input
                           id="alkaline_flat"
@@ -682,7 +690,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="mineral_round" className="text-xs font-semibold text-gray-700">Round Container Rate (₱)</Label>
+                      <Label htmlFor="mineral_round" className="text-xs font-semibold text-gray-700">Round Container Rate (₱ / Gallon)</Label>
                       <div className="relative">
                         <Input
                           id="mineral_round"
@@ -699,7 +707,7 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="mineral_flat" className="text-xs font-semibold text-gray-700">Slim / Flat Container Rate (₱)</Label>
+                      <Label htmlFor="mineral_flat" className="text-xs font-semibold text-gray-700">Slim / Flat Container Rate (₱ / Gallon)</Label>
                       <div className="relative">
                         <Input
                           id="mineral_flat"

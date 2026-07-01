@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { format } from "date-fns";
 import { createOrderAndRecordPayment } from "@/app/actions/payments";
 import { getStationPricing } from "@/app/actions/settings";
 
@@ -55,10 +54,10 @@ interface PricingRates {
 }
 
 const DEFAULT_RATES: PricingRates = {
-    alkaline_round: 50,
-    alkaline_flat: 45,
-    mineral_round: 40,
-    mineral_flat: 35,
+    alkaline_round: 10,
+    alkaline_flat: 9,
+    mineral_round: 8,
+    mineral_flat: 7,
 };
 
 // ─── Step Config ──────────────────────────────────────────────────────────────
@@ -68,6 +67,7 @@ const STEPS = [
     { id: 2, title: "Payment Method", subtitle: "How will they pay?", icon: CreditCard },
     { id: 3, title: "Fulfillment", subtitle: "Delivery or pick-up?", icon: Truck },
     { id: 4, title: "Order Status", subtitle: "Set the initial order status", icon: Flag },
+    { id: 5, title: "Payment Status", subtitle: "Record payment details", icon: Banknote },
 ];
 
 const PAYMENT_LABELS: Record<PaymentMethod, string> = {
@@ -85,11 +85,6 @@ const CONTAINER_LABELS: Record<ContainerType, string> = {
 const WATER_LABELS: Record<WaterType, string> = {
     alkaline: "Alkaline",
     mineral: "Mineral",
-};
-
-const FULFILLMENT_LABELS: Record<FulfillmentType, string> = {
-    delivery: "Delivery",
-    pickup: "Pick-up",
 };
 
 const STATUS_CONFIG: Record<OrderStatus, { icon: React.ReactNode; label: string; desc: string; selectedBorder: string; selectedBg: string; selectedText: string; checkBg: string }> = {
@@ -124,14 +119,7 @@ const STATUS_CONFIG: Record<OrderStatus, { icon: React.ReactNode; label: string;
 
 // ─── Helper Components ────────────────────────────────────────────────────────
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="flex justify-between items-center text-sm py-1.5 border-b border-gray-100 last:border-0">
-            <span className="text-gray-500">{label}</span>
-            <span className="font-medium text-gray-800 text-right max-w-[60%]">{value}</span>
-        </div>
-    );
-}
+
 
 function OptionCard({
     selected,
@@ -179,6 +167,7 @@ function MultiStepForm() {
     const [currentStep, setCurrentStep] = useState(1);
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [rates, setRates] = useState<PricingRates>(DEFAULT_RATES);
+    const [paymentAmount, setPaymentAmount] = useState<string>("");
 
     useEffect(() => {
         let active = true;
@@ -234,14 +223,17 @@ function MultiStepForm() {
                 return formData.fulfillment_type !== null;
             case 4:
                 return true;
+            case 5:
+                return true;
             default:
                 return false;
         }
     };
 
     const calculateItemPrice = (item: OrderItem): number => {
-        const rate = getRate(item.water_type, item.container_type);
-        return item.quantity * item.water_quantity * rate;
+        const ratePerGallon = getRate(item.water_type, item.container_type);
+        const totalGallons = item.quantity * item.water_quantity * CONTAINER_GALLONS[item.container_type];
+        return totalGallons * ratePerGallon;
     };
 
     const calculateTotalPrice = (): number => {
@@ -250,6 +242,9 @@ function MultiStepForm() {
 
     const goNext = () => {
         if (!canProceed()) return;
+        if (currentStep === 4) {
+            setPaymentAmount(calculateTotalPrice().toString());
+        }
         setCurrentStep((p) => Math.min(p + 1, STEPS.length));
     };
 
@@ -257,7 +252,7 @@ function MultiStepForm() {
         setCurrentStep((p) => Math.max(p - 1, 1));
     };
 
-    const handleSubmit = async () => {
+    const handleSubmit = async (skipPayment: boolean = false) => {
         if (!canProceed() || isSubmitting) return;
         setIsSubmitting(true);
         try {
@@ -268,17 +263,16 @@ function MultiStepForm() {
 
             const orderRows = activeItems.map(item => {
                 const gallons = CONTAINER_GALLONS[item.container_type];
-                const rate = getRate(item.water_type, item.container_type);
-                const pricePerGallon = rate / gallons;
+                const ratePerGallon = getRate(item.water_type, item.container_type);
                 const total_gallons = item.quantity * item.water_quantity * gallons;
-                const total_price = item.quantity * item.water_quantity * rate;
+                const total_price = total_gallons * ratePerGallon;
 
                 return {
                     log_date,
                     container_type: item.container_type,
                     quantity: item.quantity * item.water_quantity,
                     water_type: item.water_type,
-                    price_per_gallon: pricePerGallon,
+                    price_per_gallon: ratePerGallon,
                     total_gallons,
                     total_price,
                     customer_id: formData.customer_id,
@@ -289,9 +283,14 @@ function MultiStepForm() {
                 };
             });
 
-            const totalOrderPrice = calculateTotalPrice();
-            // 'credit' = customer owes; record ₱0 so balance stays positive
-            const initialPaymentAmount = formData.payment_method === "credit" ? 0 : totalOrderPrice;
+            // If skipped, record 0. Otherwise use the payment input value.
+            let initialPaymentAmount = 0;
+            if (!skipPayment && paymentAmount !== "") {
+                initialPaymentAmount = parseFloat(paymentAmount);
+                if (isNaN(initialPaymentAmount)) {
+                    initialPaymentAmount = 0;
+                }
+            }
 
             const result = await createOrderAndRecordPayment(
                 { id: sessionId ?? `session-${Date.now()}`, address: formData.customer_address },
@@ -412,8 +411,7 @@ function MultiStepForm() {
                                         {formData.items.map((item, index) => {
                                             const isSelected = item.quantity > 0;
                                             const Icon = item.water_type === "alkaline" ? Droplet : Waves;
-                                            const rate = getRate(item.water_type, item.container_type);
-                                            const pricePerGallon = rate / CONTAINER_GALLONS[item.container_type];
+                                            const ratePerGallon = getRate(item.water_type, item.container_type);
                                             const totalGal = item.quantity * item.water_quantity * CONTAINER_GALLONS[item.container_type];
                                             const itemPrice = calculateItemPrice(item);
 
@@ -438,7 +436,7 @@ function MultiStepForm() {
                                                                     {item.water_type} ({item.container_type})
                                                                 </div>
                                                                 <div className="text-[10px] text-gray-500 font-medium">
-                                                                    ₱{pricePerGallon}/gal • {CONTAINER_GALLONS[item.container_type]} gal
+                                                                    ₱{ratePerGallon}/gal • {CONTAINER_GALLONS[item.container_type]} gal
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -643,14 +641,30 @@ function MultiStepForm() {
                                             );
                                         })}
                                     </div>
+                                </div>
+                            )}
 
-                                    {/* Order summary */}
-                                    <div className="rounded-2xl bg-gray-50 border border-gray-100 p-4">
-                                        <p className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-                                            Order Summary
-                                        </p>
-                                        
-                                        <div className="space-y-1.5 pb-3 border-b border-gray-200">
+                            {/* Step 5 — Payment Status */}
+                            {currentStep === 5 && (
+                                <div className="space-y-5">
+                                    <div className="rounded-2xl bg-gray-50 border border-gray-100 p-4 space-y-4">
+                                        <div className="flex justify-between items-center pb-3 border-b border-gray-200">
+                                            <span className="text-xs font-semibold text-gray-500 uppercase tracking-wider">
+                                                Mode of Payment
+                                            </span>
+                                            <span className={`text-xs font-bold px-2.5 py-1 rounded-full border ${formData.payment_method === "gcash" ? "bg-blue-100 text-blue-700 border-blue-200" :
+                                                formData.payment_method === "cash" ? "bg-green-100 text-green-700 border-green-200" :
+                                                    formData.payment_method === "bank_transfer" ? "bg-purple-100 text-purple-700 border-purple-200" :
+                                                        "bg-amber-100 text-amber-700 border-amber-200"
+                                                }`}>
+                                                {formData.payment_method ? PAYMENT_LABELS[formData.payment_method] : "—"}
+                                            </span>
+                                        </div>
+
+                                        <div className="space-y-1.5">
+                                            <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">
+                                                Item Breakdown
+                                            </p>
                                             {formData.items.filter(item => item.quantity > 0).map((item, idx) => {
                                                 const cLabel = CONTAINER_LABELS[item.container_type];
                                                 const wLabel = WATER_LABELS[item.water_type];
@@ -666,22 +680,34 @@ function MultiStepForm() {
                                             })}
                                         </div>
 
-                                        <div className="flex justify-between items-center text-sm py-2 mt-2 pt-2">
-                                            <span className="font-bold text-gray-700">Total Price</span>
-                                            <span className="font-extrabold text-lg text-[#2FA9D9]">
+                                        <div className="flex justify-between items-center text-sm pt-3 border-t border-gray-200 font-bold">
+                                            <span className="text-gray-700">Total Price</span>
+                                            <span className="text-lg text-[#2FA9D9]">
                                                 ₱{calculateTotalPrice().toLocaleString()}
                                             </span>
                                         </div>
+                                    </div>
 
-                                        <div className="border-t border-gray-200 mt-3 pt-3 space-y-1">
-                                            <SummaryRow label="Customer" value={formData.customer_name || "—"} />
-                                            {formData.customer_address && (
-                                                <SummaryRow label="Address" value={formData.customer_address} />
-                                            )}
-                                            <SummaryRow label="Payment" value={formData.payment_method ? PAYMENT_LABELS[formData.payment_method] : "—"} />
-                                            <SummaryRow label="Fulfillment" value={formData.fulfillment_type ? FULFILLMENT_LABELS[formData.fulfillment_type] : "—"} />
-                                            <SummaryRow label="Date" value={format(new Date(), "MMMM d, yyyy")} />
+                                    <div className="space-y-2">
+                                        <label htmlFor="payment_amount" className="text-xs font-bold text-gray-700">
+                                            Amount Paid (₱)
+                                        </label>
+                                        <div className="relative">
+                                            <Input
+                                                id="payment_amount"
+                                                type="number"
+                                                min="0"
+                                                step="0.01"
+                                                placeholder="0.00"
+                                                value={paymentAmount}
+                                                onChange={(e) => setPaymentAmount(e.target.value)}
+                                                className="pl-8 text-sm animate-none"
+                                            />
+                                            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">₱</span>
                                         </div>
+                                        <p className="text-[10px] text-gray-400">
+                                            Enter the exact amount received from the customer. Click &quot;Skip Payment &amp; Save Order&quot; below if this order is not paid yet.
+                                        </p>
                                     </div>
                                 </div>
                             )}
@@ -698,42 +724,55 @@ function MultiStepForm() {
                                 {currentStep === 1 ? "Cancel" : "Back"}
                             </Button>
 
-                            {currentStep < STEPS.length ? (
-                                <Button
-                                    onClick={goNext}
-                                    disabled={!canProceed()}
-                                    className="gap-2 bg-[#2FA9D9] hover:bg-[#2195c0] text-white disabled:opacity-40"
-                                >
-                                    Next
-                                    <ArrowRight className="w-4 h-4" />
-                                </Button>
-                            ) : (
-                                <Button
-                                    onClick={handleSubmit}
-                                    disabled={isSubmitting}
-                                    className={`
-                                        gap-2 text-white px-6 disabled:opacity-40
-                                        ${formData.initial_status === "delivered"
-                                            ? "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
-                                            : formData.initial_status === "cancelled"
-                                                ? "bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700"
-                                                : "bg-gradient-to-r from-[#2FA9D9] to-[#1e8fbd] hover:from-[#2195c0] hover:to-[#1a7da8]"
-                                        }
-                                    `}
-                                >
-                                    {isSubmitting ? (
-                                        <>
-                                            <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
-                                            Saving…
-                                        </>
-                                    ) : (
-                                        <>
-                                            <Check className="w-4 h-4 stroke-[3]" />
-                                            Save Order
-                                        </>
-                                    )}
-                                </Button>
-                            )}
+                            <div className="flex gap-2">
+                                {currentStep === 5 && (
+                                    <Button
+                                        onClick={() => handleSubmit(true)}
+                                        disabled={isSubmitting}
+                                        variant="outline"
+                                        className="border-gray-200 text-gray-600 hover:bg-gray-50"
+                                    >
+                                        Skip Payment & Save Order
+                                    </Button>
+                                )}
+
+                                {currentStep < STEPS.length ? (
+                                    <Button
+                                        onClick={goNext}
+                                        disabled={!canProceed()}
+                                        className="gap-2 bg-[#2FA9D9] hover:bg-[#2195c0] text-white disabled:opacity-40"
+                                    >
+                                        Next
+                                        <ArrowRight className="w-4 h-4" />
+                                    </Button>
+                                ) : (
+                                    <Button
+                                        onClick={() => handleSubmit(false)}
+                                        disabled={isSubmitting || !paymentAmount || parseFloat(paymentAmount) < 0}
+                                        className={`
+                                            gap-2 text-white px-6 disabled:opacity-40
+                                            ${formData.initial_status === "delivered"
+                                                ? "bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700"
+                                                : formData.initial_status === "cancelled"
+                                                    ? "bg-gradient-to-r from-rose-500 to-rose-600 hover:from-rose-600 hover:to-rose-700"
+                                                    : "bg-gradient-to-r from-[#2FA9D9] to-[#1e8fbd] hover:from-[#2195c0] hover:to-[#1a7da8]"
+                                            }
+                                        `}
+                                    >
+                                        {isSubmitting ? (
+                                            <>
+                                                <span className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+                                                Saving…
+                                            </>
+                                        ) : (
+                                            <>
+                                                <Check className="w-4 h-4 stroke-[3]" />
+                                                Save Order
+                                            </>
+                                        )}
+                                    </Button>
+                                )}
+                            </div>
                         </div>
                     </div>
                 </div>

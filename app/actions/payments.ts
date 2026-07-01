@@ -164,7 +164,7 @@ export async function createOrderAndRecordPayment(
         throw new Error(`Failed to insert orders: ${ordersError.message}`);
     }
 
-    // 3. Record initial payment if amount is positive
+    // 3. Record initial payment only if amount is positive (skip 0 amounts)
     if (initialPaymentAmount > 0) {
         const { error: paymentError } = await supabase
             .from("payments")

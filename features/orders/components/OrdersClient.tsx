@@ -5,7 +5,7 @@ import { useDebouncedCallback } from "use-debounce";
 import {
     PhilippinePeso, Plus, Search, Trash, Eye,
     CheckCircle2, XCircle, RotateCcw, Clock, PackageCheck, Package,
-    Edit, MapPin, Printer
+    Edit, MapPin, Printer, ArrowLeft, User
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -510,6 +510,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
     const statTab = "today";
     const [sessionListTab, setSessionListTab] = useState("ongoing");
+    const [paymentFilter, setPaymentFilter] = useState("all");
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
     const [customerSearch, setCustomerSearch] = useState("");
@@ -521,6 +522,98 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
         customerName: "",
         customerId: ""
     });
+
+    const handleDownloadSessionReport = (sessionGroup: SessionGroup) => {
+        const { sessionId, address, logs } = sessionGroup;
+        const today = format(new Date(), "MMMM d, yyyy");
+
+        // Generate HTML content for Word
+        const htmlContent = `
+        <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
+        <head>
+            <meta charset='utf-8'>
+            <title>Session Report</title>
+            <style>
+                body { font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; }
+                .report-header { text-align: center; border-bottom: 2px solid #2FA9D9; padding-bottom: 10px; margin-bottom: 20px; }
+                .report-header h1 { color: #2FA9D9; margin: 0; font-size: 24pt; }
+                .report-header p { margin: 5px 0; color: #666; font-size: 10pt; }
+                .meta-info { margin-bottom: 30px; background: #f9f9f9; padding: 15px; border-radius: 8px; }
+                .meta-info p { margin: 3px 0; font-size: 11pt; }
+                .meta-info b { color: #2FA9D9; }
+                table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                th { background-color: #2FA9D9; color: white; padding: 12px; text-align: left; font-size: 10pt; border: 1px solid #2FA9D9; }
+                td { padding: 10px; border: 1px solid #eee; font-size: 10pt; vertical-align: top; }
+                tr:nth-child(even) { background-color: #fafafa; }
+                .total-row { background-color: #f0f9ff !important; font-weight: bold; }
+                .footer { margin-top: 40px; text-align: center; font-size: 9pt; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
+                .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 8pt; font-weight: bold; }
+            </style>
+        </head>
+        <body>
+            <div class="report-header">
+                <h1>DAILY LOGS REPORT</h1>
+                <p>Water Station Management System • Kwago Dashboard</p>
+            </div>
+
+            <div class="meta-info">
+                <p><b>Session ID:</b> ${sessionId}</p>
+                <p><b>Location:</b> ${address}</p>
+                <p><b>Report Date:</b> ${today}</p>
+                <p><b>Total Entries:</b> ${logs.length}</p>
+            </div>
+
+            <table>
+                <thead>
+                    <tr>
+                        <th>Date</th>
+                        <th>Customer</th>
+                        <th>Product Details</th>
+                        <th>Quantity</th>
+                        <th>Amount</th>
+                        <th>Status</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    ${logs.map(log => {
+            const quantity = log.quantity ?? 1;
+            const wType = log.water_type || "mineral";
+            const cType = log.container_type || "round";
+            const price = log.total_price ?? (quantity * 5 * (wType === "alkaline" ? 50 : 35));
+            return `
+                            <tr>
+                                <td>${format(new Date(log.log_date), "MMM d, yyyy")}</td>
+                                <td>${log.customer_name}</td>
+                                <td>${cType} • ${wType}</td>
+                                <td>${quantity}</td>
+                                <td>₱${price.toLocaleString()}</td>
+                                <td>${log.status || "ongoing"}</td>
+                            </tr>
+                        `;
+        }).join('')}
+                </tbody>
+            </table>
+
+            <div class="footer">
+                <p>© ${new Date().getFullYear()} Water Station Management. Generated via Kwago Dashboard.</p>
+            </div>
+        </body>
+        </html>
+        `;
+
+        const blob = new Blob(['\ufeff', htmlContent], {
+            type: 'application/msword'
+        });
+
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = `Session_Report_${sessionId}.doc`;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+    };
 
     useEffect(() => {
         setIsLoadingCustomers(true);
@@ -733,10 +826,10 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
             title: "Actions",
             key: "id",
             render: (_v, item: Order) => (
-                <div className="flex justify-end gap-1.5">
+                <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
                     <Button
                         variant="outline" size="icon-sm"
-                        onClick={() => handleOpenView(item)}
+                        onClick={(e) => { e.stopPropagation(); handleOpenView(item); }}
                         title="View details"
                         className="hover:text-[#2FA9D9]"
                     >
@@ -744,7 +837,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                     </Button>
                     <Button
                         variant="outline" size="icon-sm"
-                        onClick={() => handleOpenStatusChange(item, "delivered")}
+                        onClick={(e) => { e.stopPropagation(); handleOpenStatusChange(item, "delivered"); }}
                         title="Mark as Delivered"
                         className="hover:text-emerald-600"
                     >
@@ -752,7 +845,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                     </Button>
                     <Button
                         variant="outline" size="icon-sm"
-                        onClick={() => handleOpenStatusChange(item, "cancelled")}
+                        onClick={(e) => { e.stopPropagation(); handleOpenStatusChange(item, "cancelled"); }}
                         title="Cancel Order"
                         className="hover:text-rose-600"
                     >
@@ -760,7 +853,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                     </Button>
                     <Button
                         variant="outline" size="icon-sm"
-                        onClick={() => handleOpenDelete(item)}
+                        onClick={(e) => { e.stopPropagation(); handleOpenDelete(item); }}
                         title="Delete"
                         className="hover:text-rose-600"
                     >
@@ -777,19 +870,19 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
             title: "Actions",
             key: "id",
             render: (_v, item: Order) => (
-                <div className="flex justify-end gap-1.5">
-                    <Button variant="outline" size="icon-sm" onClick={() => handleOpenView(item)} title="View details" className="hover:text-[#2FA9D9]">
+                <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="outline" size="icon-sm" onClick={(e) => { e.stopPropagation(); handleOpenView(item); }} title="View details" className="hover:text-[#2FA9D9]">
                         <Eye className="w-3.5 h-3.5" />
                     </Button>
                     <Button
                         variant="outline" size="icon-sm"
-                        onClick={() => handleOpenStatusChange(item, "ongoing")}
+                        onClick={(e) => { e.stopPropagation(); handleOpenStatusChange(item, "ongoing"); }}
                         title="Restore to Ongoing"
                         className="hover:text-[#2FA9D9]"
                     >
                         <RotateCcw className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="outline" size="icon-sm" onClick={() => handleOpenDelete(item)} title="Delete" className="hover:text-rose-600">
+                    <Button variant="outline" size="icon-sm" onClick={(e) => { e.stopPropagation(); handleOpenDelete(item); }} title="Delete" className="hover:text-rose-600">
                         <Trash className="w-3.5 h-3.5" />
                     </Button>
                 </div>
@@ -803,19 +896,19 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
             title: "Actions",
             key: "id",
             render: (_v, item: Order) => (
-                <div className="flex justify-end gap-1.5">
-                    <Button variant="outline" size="icon-sm" onClick={() => handleOpenView(item)} title="View details" className="hover:text-[#2FA9D9]">
+                <div className="flex justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
+                    <Button variant="outline" size="icon-sm" onClick={(e) => { e.stopPropagation(); handleOpenView(item); }} title="View details" className="hover:text-[#2FA9D9]">
                         <Eye className="w-3.5 h-3.5" />
                     </Button>
                     <Button
                         variant="outline" size="icon-sm"
-                        onClick={() => handleOpenStatusChange(item, "ongoing")}
+                        onClick={(e) => { e.stopPropagation(); handleOpenStatusChange(item, "ongoing"); }}
                         title="Restore to Ongoing"
                         className="hover:text-[#2FA9D9]"
                     >
                         <RotateCcw className="w-3.5 h-3.5" />
                     </Button>
-                    <Button variant="outline" size="icon-sm" onClick={() => handleOpenDelete(item)} title="Delete" className="hover:text-rose-600">
+                    <Button variant="outline" size="icon-sm" onClick={(e) => { e.stopPropagation(); handleOpenDelete(item); }} title="Delete" className="hover:text-rose-600">
                         <Trash className="w-3.5 h-3.5" />
                     </Button>
                 </div>
@@ -863,178 +956,82 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
         }
     ];
 
-    const sessionColumns: Column<SessionGroup>[] = [
-        {
-            title: "Session Info",
-            key: "sessionInfo",
-            className: "py-3",
-            render: (_, group) => (
-                <div className="flex items-start gap-4 cursor-pointer" onClick={() => {
-                    setSelectedSessionForDetails(group);
-                    setIsSessionDetailsModalOpen(true);
-                }}>
-                    <div className="w-10 h-10 rounded-full bg-[#2FA9D9]/10 flex items-center justify-center shrink-0 mt-0.5">
-                        <Package className="w-5 h-5 text-[#2FA9D9]" />
-                    </div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <span className="font-bold text-sm text-[#2FA9D9]">{group.customerName}</span>
-                        </div>
-                        <div className="text-sm text-gray-500 max-w-[300px] truncate mt-1 flex items-center gap-1.5">
-                            <MapPin className="w-3.5 h-3.5 text-gray-400" />
-                            {group.address}
-                        </div>
-                    </div>
-                </div>
-            )
-        },
-        {
-            title: "Date",
-            key: "date",
-            className: "py-3 align-middle",
-            render: (_, group) => (
-                <div className="flex flex-col">
-                    <span className="font-medium text-sm text-gray-900">{format(new Date(group.date), "MMM d, yyyy")}</span>
-                </div>
-            )
-        },
-        {
-            title: "Orders",
-            key: "ordersCount",
-            className: "py-3 align-middle",
-            render: (_, group) => (
-                <div className="inline-flex flex-col">
-                    <span className="font-bold text-gray-900 text-lg leading-tight">{group.logs.length}</span>
-                    <span className="text-xs text-gray-400 font-medium">orders</span>
-                </div>
-            )
-        },
-        {
-            title: "Status",
-            key: "status",
-            className: "py-3 align-middle",
-            render: (_, group) => (
-                <div className="flex items-center" onClick={(e) => e.stopPropagation()}>
-                    <Select
-                        value={group.status}
-                        onValueChange={(val) => group.onStatusChange(group.sessionId, val)}
-                    >
-                        <SelectTrigger className="w-[130px] h-8 text-xs font-medium bg-gray-50 border-gray-200">
-                            <SelectValue placeholder="Status" />
-                        </SelectTrigger>
-                        <SelectContent>
-                            <SelectItem value="ongoing" className="text-xs">Ongoing</SelectItem>
-                            <SelectItem value="completed" className="text-xs">Completed</SelectItem>
-                            <SelectItem value="cancelled" className="text-xs">Cancelled</SelectItem>
-                        </SelectContent>
-                    </Select>
-                </div>
-            )
-        },
-        {
-            title: "Actions",
-            key: "actions",
-            className: "py-3 align-middle text-right",
-            render: (_, group) => (
-                <div className="flex items-center justify-end gap-1.5" onClick={(e) => e.stopPropagation()}>
-                    <Button
-                        variant="outline" size="icon-sm"
-                        onClick={() => {
-                            setSelectedSessionForDetails(group);
-                            setIsSessionDetailsModalOpen(true);
-                        }}
-                        className="hover:text-[#2FA9D9]"
-                        title="View Details"
-                    >
-                        <Eye className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                        variant="outline" size="icon-sm"
-                        onClick={() => {
-                            setSelectedSessionForTally(group);
-                            setIsTallyModalOpen(true);
-                        }}
-                        className="hover:text-emerald-600"
-                        title="Generate Tally"
-                    >
-                        <PackageCheck className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                        variant="outline" size="icon-sm"
-                        onClick={() => group.onEdit(group.sessionId, group.address)}
-                        className="hover:text-[#2FA9D9]"
-                        title="Edit Session Address"
-                    >
-                        <Edit className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button
-                        variant="outline" size="icon-sm"
-                        onClick={() => group.onDelete(group.sessionId)}
-                        className="hover:text-rose-600"
-                        title="Delete Session"
-                    >
-                        <Trash className="w-3.5 h-3.5" />
-                    </Button>
-                </div>
-            )
-        }
-    ];
 
-    const renderSessionMobileItem = (group: SessionGroup) => (
-        <div className="p-4 space-y-3 cursor-pointer hover:bg-gray-50/50" onClick={() => {
-            setSelectedSessionForDetails(group);
-            setIsSessionDetailsModalOpen(true);
-        }}>
-            <div className="flex justify-between items-start">
-                <div className="flex items-start gap-3">
-                    <div className="w-8 h-8 rounded-full bg-[#2FA9D9]/10 flex items-center justify-center shrink-0">
-                        <Package className="w-4 h-4 text-[#2FA9D9]" />
-                    </div>
-                    <div>
-                        <div className="font-bold text-sm text-[#2FA9D9]">{group.customerName}</div>
-                        <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5 max-w-[200px] truncate">
-                            <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
-                            {group.address}
+    const renderOrderMobileItem = (item: Order) => {
+        const paymentStatus = getPaymentStatus(item);
+        const total = item.total_price ?? 0;
+        return (
+            <div className="p-4 space-y-3 cursor-pointer hover:bg-gray-50/50" onClick={() => {
+                setSelectedLog(item);
+                setIsViewModalOpen(true);
+            }}>
+                <div className="flex justify-between items-start">
+                    <div className="flex items-start gap-3">
+                        <div className="w-8 h-8 rounded-full bg-[#2FA9D9]/10 flex items-center justify-center shrink-0">
+                            <Package className="w-4 h-4 text-[#2FA9D9]" />
+                        </div>
+                        <div>
+                            <div className="font-bold text-sm text-[#2FA9D9]">{item.customer_name}</div>
+                            {item.customer_address && (
+                                <div className="text-xs text-gray-500 flex items-center gap-1 mt-0.5 max-w-[200px] truncate">
+                                    <MapPin className="w-3 h-3 text-gray-400 shrink-0" />
+                                    {item.customer_address}
+                                </div>
+                            )}
                         </div>
                     </div>
+                    <div className="text-right">
+                        <div className="font-bold text-[#2FA9D9] text-sm">₱{total.toLocaleString()}</div>
+                        <div className="text-[10px] text-gray-400 font-medium">{item.quantity} container{item.quantity > 1 ? "s" : ""}</div>
+                    </div>
                 </div>
-                <div className="text-right">
-                    <div className="font-bold text-gray-900 text-lg leading-none">{group.logs.length}</div>
-                    <div className="text-[10px] text-gray-400 font-medium">orders</div>
+
+                <div className="flex flex-wrap items-center gap-2 pt-1">
+                    <Badge value={item.container_type} labels={CONTAINER_LABELS} colors={CONTAINER_COLORS} />
+                    <Badge value={item.water_type} labels={WATER_LABELS} colors={WATER_COLORS} />
+                    <Badge value={paymentStatus} labels={PAYMENT_STATUS_LABELS} colors={PAYMENT_STATUS_COLORS} />
+                </div>
+
+                <div className="flex items-center justify-between border-t border-gray-100 pt-3" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2">
+                        <span className="text-[10px] font-bold uppercase text-gray-400">Date</span>
+                        <span className="text-xs font-medium text-gray-900">{format(new Date(item.log_date), "MMM d, yyyy")}</span>
+                    </div>
+
+                    <div className="flex justify-end gap-1.5">
+                        <Button
+                            variant="outline" size="icon-xs"
+                            onClick={(e) => { e.stopPropagation(); handleOpenView(item); }}
+                            className="hover:text-[#2FA9D9]"
+                        >
+                            <Eye className="w-3 h-3" />
+                        </Button>
+                        <Button
+                            variant="outline" size="icon-xs"
+                            onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenStatusChange(item, item.status === "ongoing" || !item.status ? "delivered" : "ongoing");
+                            }}
+                            className="hover:text-emerald-600"
+                        >
+                            {item.status === "ongoing" || !item.status ? (
+                                <CheckCircle2 className="w-3 h-3" />
+                            ) : (
+                                <RotateCcw className="w-3 h-3" />
+                            )}
+                        </Button>
+                        <Button
+                            variant="outline" size="icon-xs"
+                            onClick={(e) => { e.stopPropagation(); handleOpenDelete(item); }}
+                            className="hover:text-rose-600"
+                        >
+                            <Trash className="w-3 h-3" />
+                        </Button>
+                    </div>
                 </div>
             </div>
-            <div className="flex items-center justify-between border-t border-gray-100 pt-3" onClick={(e) => e.stopPropagation()}>
-                <div className="flex items-center gap-2">
-                    <span className="text-[10px] font-bold uppercase text-gray-400">Date</span>
-                    <span className="text-xs font-medium text-gray-900">{format(new Date(group.date), "MMM d")}</span>
-                </div>
-                <Select
-                    value={group.status}
-                    onValueChange={(val) => group.onStatusChange(group.sessionId, val)}
-                >
-                    <SelectTrigger className="w-[110px] h-7 text-[10px] font-medium bg-gray-50 border-gray-200">
-                        <SelectValue placeholder="Status" />
-                    </SelectTrigger>
-                    <SelectContent>
-                        <SelectItem value="ongoing" className="text-xs">Ongoing</SelectItem>
-                        <SelectItem value="completed" className="text-xs">Completed</SelectItem>
-                        <SelectItem value="cancelled" className="text-xs">Cancelled</SelectItem>
-                    </SelectContent>
-                </Select>
-            </div>
-            <div className="flex justify-end gap-2 pt-2" onClick={(e) => e.stopPropagation()}>
-                <Button variant="outline" size="icon-sm" onClick={() => { setSelectedSessionForTally(group); setIsTallyModalOpen(true); }} className="hover:text-emerald-600">
-                    <PackageCheck className="w-3.5 h-3.5" />
-                </Button>
-                <Button variant="outline" size="icon-sm" onClick={() => group.onEdit(group.sessionId, group.address)} className="hover:text-[#2FA9D9]">
-                    <Edit className="w-3.5 h-3.5" />
-                </Button>
-                <Button variant="outline" size="icon-sm" onClick={() => group.onDelete(group.sessionId)} className="hover:text-rose-600">
-                    <Trash className="w-3.5 h-3.5" />
-                </Button>
-            </div>
-        </div>
-    );
+        );
+    };
 
     // ─────────────────────────────────────────────────────────────────────────
 
@@ -1061,8 +1058,51 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
 
 
 
-    const totalRevenue = filteredStatsLogs.reduce((sum, log) => sum + calculateLogPrice(log), 0);
+    const filteredStatsSessions = allSessions.filter((session) => {
+        if (session.status === "cancelled") return false;
+
+        const sessionDate = new Date(session.date);
+
+        if (statTab === "today") {
+            return sessionDate.toDateString() === now.toDateString();
+        } else if (statTab === "week") {
+            const weekAgo = new Date(now);
+            weekAgo.setDate(now.getDate() - 7);
+            return sessionDate >= weekAgo;
+        } else if (statTab === "month") {
+            return sessionDate.getMonth() === now.getMonth() && sessionDate.getFullYear() === now.getFullYear();
+        } else if (statTab === "year") {
+            return sessionDate.getFullYear() === now.getFullYear();
+        }
+        return true;
+    });
+
+    const totalRevenue = filteredStatsSessions.reduce((sum, session) => sum + session.totalPaid, 0);
     const totalOrders = filteredStatsLogs.length;
+
+    const ongoingOrders = initialData.filter(log => !log.status || log.status === "ongoing");
+    const completedOrders = initialData.filter(log => log.status === "delivered");
+    const cancelledOrders = initialData.filter(log => log.status === "cancelled");
+
+    const baseOrders = sessionListTab === "ongoing"
+        ? ongoingOrders
+        : sessionListTab === "completed"
+            ? completedOrders
+            : cancelledOrders;
+
+    const currentTabOrders = baseOrders.filter(order => {
+        if (paymentFilter === "all") return true;
+        const paymentStatus = getPaymentStatus(order);
+        if (paymentFilter === "paid") return paymentStatus === "paid";
+        if (paymentFilter === "unpaid") return paymentStatus === "unpaid" || paymentStatus === "partial"; 
+        return true;
+    });
+
+    const currentTabColumns = sessionListTab === "ongoing"
+        ? ongoingColumns
+        : sessionListTab === "completed"
+            ? deliveredColumns
+            : cancelledColumns;
 
     return (
         <>
@@ -1090,7 +1130,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                         />
                         <StatCard
                             title="Ongoing Orders"
-                            value={initialData.filter(log => log.status === "ongoing").length.toString()}
+                            value={ongoingOrders.length.toString()}
                             change="Active"
                             positive={true}
                             icon={Clock}
@@ -1099,7 +1139,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                         />
                         <StatCard
                             title="Delivered Orders"
-                            value={initialData.filter(log => log.status === "delivered").length.toString()}
+                            value={completedOrders.length.toString()}
                             change="Completed"
                             positive={true}
                             icon={CheckCircle2}
@@ -1143,28 +1183,47 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                     </Button>
                 </div>
 
-                {/* All Sessions List */}
+                {/* All Orders List */}
                 <div className="p-4 sm:p-6">
-                    <Tabs value={sessionListTab} onValueChange={setSessionListTab} className="w-full mb-4">
-                        <TabsList className="grid grid-cols-3 w-full sm:w-[400px]">
-                            <TabsTrigger value="ongoing">Ongoing ({allSessions.filter(g => g.status === 'ongoing').length})</TabsTrigger>
-                            <TabsTrigger value="completed">Completed ({allSessions.filter(g => g.status === 'completed').length})</TabsTrigger>
-                            <TabsTrigger value="cancelled">Cancelled ({allSessions.filter(g => g.status === 'cancelled').length})</TabsTrigger>
-                        </TabsList>
-                    </Tabs>
+                    <div className="flex flex-col sm:flex-row gap-6 mb-4">
+                        <div className="space-y-1.5 w-full sm:w-[400px]">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Order Status</label>
+                            <Tabs value={sessionListTab} onValueChange={setSessionListTab} className="w-full">
+                                <TabsList className="grid grid-cols-3 w-full">
+                                    <TabsTrigger value="ongoing">Ongoing ({ongoingOrders.length})</TabsTrigger>
+                                    <TabsTrigger value="completed">Completed ({completedOrders.length})</TabsTrigger>
+                                    <TabsTrigger value="cancelled">Cancelled ({cancelledOrders.length})</TabsTrigger>
+                                </TabsList>
+                            </Tabs>
+                        </div>
+                        <div className="space-y-1.5 w-full sm:w-[300px]">
+                            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Payment Status</label>
+                            <Tabs value={paymentFilter} onValueChange={setPaymentFilter} className="w-full">
+                                <TabsList className="grid grid-cols-3 w-full">
+                                    <TabsTrigger value="all">All</TabsTrigger>
+                                    <TabsTrigger value="paid">Paid</TabsTrigger>
+                                    <TabsTrigger value="unpaid">Unpaid</TabsTrigger>
+                                </TabsList>
+                            </Tabs>
+                        </div>
+                    </div>
 
-                    {allSessions.filter(group => group.status === sessionListTab).length === 0 ? (
+                    {currentTabOrders.length === 0 ? (
                         <div className="py-20 text-center">
                             <Clock className="w-12 h-12 text-gray-200 mx-auto mb-4" />
-                            <h3 className="text-gray-500 font-medium">No sessions found</h3>
-                            <p className="text-gray-400 text-sm mt-1">Start a new session to begin logging orders.</p>
+                            <h3 className="text-gray-500 font-medium">No orders found</h3>
+                            <p className="text-gray-400 text-sm mt-1">Start a new order session to begin logging orders.</p>
                         </div>
                     ) : (
                         <DataTable
-                            columns={sessionColumns}
-                            data={allSessions.filter(group => group.status === sessionListTab)}
-                            keyExtractor={(item) => item.sessionId}
-                            renderMobileItem={renderSessionMobileItem}
+                            columns={currentTabColumns}
+                            data={currentTabOrders}
+                            keyExtractor={(item) => String(item.id)}
+                            renderMobileItem={renderOrderMobileItem}
+                            onRowClick={(item) => {
+                                setSelectedLog(item);
+                                setIsViewModalOpen(true);
+                            }}
                         />
                     )}
                 </div>
@@ -1172,86 +1231,157 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
 
             {/* ── View Modal ── */}
             <Dialog open={isViewModalOpen} onOpenChange={setIsViewModalOpen}>
-                <DialogContent className="sm:max-w-md max-w-[95vw]">
-                    <DialogHeader>
-                        <DialogTitle className="text-lg sm:text-xl">Order Details</DialogTitle>
-                    </DialogHeader>
+                <DialogContent className="sm:max-w-md max-w-[95vw] max-h-[90vh] flex flex-col p-0 overflow-hidden bg-white/95 backdrop-blur-sm">
                     {selectedLog && (
-                        <div className="space-y-3 text-sm">
-                            <div className="flex justify-between border-b pb-2">
-                                <span className="text-gray-500">Date</span>
-                                <span className="text-right font-medium">
-                                    {format(new Date(selectedLog.log_date), "MMMM d, yyyy")}
-                                </span>
-                            </div>
-                            <div className="flex justify-between border-b pb-2">
-                                <span className="text-gray-500">Status</span>
+                        <>
+                            {/* Header Section */}
+                            <DialogHeader className="p-4 sm:p-6 pb-4 shrink-0 flex flex-row items-center justify-between border-b border-gray-100 space-y-0 text-left">
+                                <div className="flex items-center gap-3 flex-1">
+                                    <Button variant="ghost" size="icon" onClick={() => setIsViewModalOpen(false)} className="rounded-full w-8 h-8 shrink-0 hover:bg-gray-100">
+                                        <ArrowLeft className="w-4 h-4 text-gray-700" />
+                                    </Button>
+                                    <DialogTitle className="text-lg sm:text-xl font-bold m-0 text-gray-900">Order #{selectedLog.id || "Details"}</DialogTitle>
+                                </div>
                                 <StatusBadge status={selectedLog.status ?? "ongoing"} />
-                            </div>
-                            <div className="flex justify-between border-b pb-2">
-                                <span className="text-gray-500">Customer</span>
-                                <span className="text-right font-medium">{selectedLog.customer_name || "—"}</span>
-                            </div>
-                            {selectedLog.customer_address && (
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-gray-500">Address</span>
-                                    <span className="text-right text-gray-700 max-w-[60%]">{selectedLog.customer_address}</span>
+                            </DialogHeader>
+
+                            {/* Scrollable Content */}
+                            <div className="flex-1 overflow-y-auto px-4 sm:px-6 py-4 space-y-6 text-sm">
+                                {/* Customer & Address Section */}
+                                <div className="relative pl-2">
+                                    {selectedLog.customer_address && (
+                                        <div className="absolute left-6 top-8 bottom-8 w-px bg-gray-200" />
+                                    )}
+                                    <div className="flex items-start gap-4 relative z-10">
+                                        <div className="w-8 h-8 rounded-full bg-blue-50 border border-blue-100 flex items-center justify-center shrink-0 mt-0.5 bg-white">
+                                            <User className="w-4 h-4 text-[#2FA9D9]" />
+                                        </div>
+                                        <div className="flex-1 pb-4">
+                                            <div className="font-semibold text-gray-900 text-base">{selectedLog.customer_name || "—"}</div>
+                                            <div className="text-xs text-gray-500 mt-0.5">{format(new Date(selectedLog.log_date), "dd MMM, yyyy • HH:mm")}</div>
+                                        </div>
+                                    </div>
+                                    {selectedLog.customer_address && (
+                                        <div className="flex items-start gap-4 relative z-10">
+                                            <div className="w-8 h-8 rounded-full bg-gray-50 border border-gray-100 flex items-center justify-center shrink-0 mt-0.5 bg-white">
+                                                <MapPin className="w-4 h-4 text-gray-400" />
+                                            </div>
+                                            <div className="flex-1 pb-2">
+                                                <div className="font-medium text-gray-900 text-sm leading-snug pt-1">{selectedLog.customer_address}</div>
+                                            </div>
+                                        </div>
+                                    )}
                                 </div>
-                            )}
-                            <div className="flex justify-between border-b pb-2">
-                                <span className="text-gray-500">Container Type</span>
-                                <Badge value={selectedLog.container_type} labels={CONTAINER_LABELS} colors={CONTAINER_COLORS} />
-                            </div>
-                            <div className="flex justify-between border-b pb-2">
-                                <span className="text-gray-500">Quantity</span>
-                                <span className="font-medium">{selectedLog.quantity ?? 1} container{(selectedLog.quantity ?? 1) > 1 ? "s" : ""}</span>
-                            </div>
-                            <div className="flex justify-between border-b pb-2">
-                                <span className="text-gray-500">Water Type</span>
-                                <Badge value={selectedLog.water_type} labels={WATER_LABELS} colors={WATER_COLORS} />
-                            </div>
-                            {selectedLog.price_per_gallon && (
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-gray-500">Price per Gallon</span>
-                                    <span className="font-medium">₱{selectedLog.price_per_gallon}</span>
+
+                                <div className="border-t border-dashed border-gray-200"></div>
+
+                                {/* Order Items Section */}
+                                <div className="pt-2">
+                                    <div className="flex justify-between items-start mb-2">
+                                        <div className="font-bold text-gray-900 text-base flex items-center">
+                                            <span className="text-gray-400 font-semibold text-sm mr-2">#1</span>
+                                            {CONTAINER_LABELS[selectedLog.container_type] ?? "Container"} <span className="ml-2 text-sm font-normal text-gray-500">x {selectedLog.quantity ?? 1}</span>
+                                        </div>
+                                        <div className="font-semibold text-gray-900 text-base">
+                                            {selectedLog.total_price !== null && selectedLog.total_price !== undefined ? `₱${selectedLog.total_price.toLocaleString()}` : "—"}
+                                        </div>
+                                    </div>
+                                    <div className="pl-6 space-y-1.5 text-sm">
+                                        <div className="flex text-gray-500">
+                                            <span className="w-28 font-medium text-gray-400">Water type:</span>
+                                            <span className="text-gray-700">{WATER_LABELS[selectedLog.water_type] ?? "—"}</span>
+                                        </div>
+                                        <div className="flex text-gray-500">
+                                            <span className="w-28 font-medium text-gray-400">Container type:</span>
+                                            <span className="text-gray-700">{CONTAINER_LABELS[selectedLog.container_type] ?? "—"}</span>
+                                        </div>
+                                        {selectedLog.total_gallons && (
+                                            <div className="flex text-gray-500">
+                                                <span className="w-28 font-medium text-gray-400">Total gallons:</span>
+                                                <span className="text-gray-700">{selectedLog.total_gallons} gal</span>
+                                            </div>
+                                        )}
+                                        {selectedLog.price_per_gallon && (
+                                            <div className="flex text-gray-500">
+                                                <span className="w-28 font-medium text-gray-400">Price/gallon:</span>
+                                                <span className="text-gray-700">₱{selectedLog.price_per_gallon}</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
-                            )}
-                            {selectedLog.total_gallons && (
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-gray-500">Total Gallons</span>
-                                    <span className="font-medium">{selectedLog.total_gallons} gal</span>
+
+                                <div className="border-t border-dashed border-gray-200"></div>
+
+                                {/* Summary & Session Overview */}
+                                <div className="space-y-3 pt-2">
+                                    <div className="flex justify-between text-gray-600 text-sm">
+                                        <span>Payment Status</span>
+                                        {(() => {
+                                            const paymentStatus = getPaymentStatus(selectedLog);
+                                            return <span className="font-medium capitalize text-gray-900">{paymentStatus}</span>;
+                                        })()}
+                                    </div>
+                                    <div className="flex justify-between text-gray-600 text-sm">
+                                        <span>Fulfillment</span>
+                                        <span className="font-medium text-gray-900">{FULFILLMENT_LABELS[selectedLog.fulfillment_type] ?? selectedLog.fulfillment_type}</span>
+                                    </div>
+
+                                    {/* Session Details embedded in summary */}
+                                    {(() => {
+                                        const selectedSessionGroup = allSessions.find(g => g.sessionId === selectedLog.session_id);
+                                        if (!selectedSessionGroup) return null;
+                                        return (
+                                            <>
+                                                <div className="flex justify-between text-gray-600 text-sm">
+                                                    <span>Session ID</span>
+                                                    <span className="font-mono text-gray-900">{selectedSessionGroup.sessionId}</span>
+                                                </div>
+                                                <div className="flex justify-between text-gray-600 text-sm">
+                                                    <span>Session Paid</span>
+                                                    <span className="font-medium text-emerald-600">₱{selectedSessionGroup.totalPaid.toLocaleString()}</span>
+                                                </div>
+                                                {selectedSessionGroup.balance > 0 && (
+                                                    <div className="flex justify-between text-gray-600 text-sm">
+                                                        <span>Remaining Balance</span>
+                                                        <span className="font-medium text-amber-600">- ₱{selectedSessionGroup.balance.toLocaleString()}</span>
+                                                    </div>
+                                                )}
+
+                                                <div className="border-t border-dashed border-gray-200 pt-4 mt-4 flex justify-between items-center">
+                                                    <span className="font-bold text-gray-900 text-base">Session Total</span>
+                                                    <span className="font-bold text-gray-900 text-lg">₱{selectedSessionGroup.totalOwed.toLocaleString()}</span>
+                                                </div>
+
+                                                <div className="flex gap-3 pt-6 pb-2">
+                                                    <Button
+                                                        variant="outline"
+                                                        size="default"
+                                                        className="flex-1 font-semibold rounded-xl text-gray-700 bg-gray-50 hover:bg-gray-100 border-none h-12"
+                                                        onClick={() => handleDownloadSessionReport(selectedSessionGroup)}
+                                                    >
+                                                        Download Doc
+                                                    </Button>
+                                                    {selectedSessionGroup.paymentStatus !== "paid" && (
+                                                        <Button
+                                                            variant="default"
+                                                            size="default"
+                                                            onClick={() => {
+                                                                setSelectedSessionForDetails(selectedSessionGroup);
+                                                                setIsPaymentModalOpen(true);
+                                                            }}
+                                                            className="flex-1 font-semibold bg-[#2FA9D9] hover:bg-[#2195c0] text-white rounded-xl h-12"
+                                                        >
+                                                            Settle Balance
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </>
+                                        );
+                                    })()}
                                 </div>
-                            )}
-                            {selectedLog.total_price !== null && selectedLog.total_price !== undefined && (
-                                <div className="flex justify-between border-b pb-2">
-                                    <span className="text-gray-500">Total Price</span>
-                                    <span className="font-bold text-lg text-[#2FA9D9]">₱{selectedLog.total_price.toLocaleString()}</span>
-                                </div>
-                            )}
-                            <div className="flex justify-between border-b pb-2">
-                                <span className="text-gray-500">Payment Status</span>
-                                {(() => {
-                                    const sessionStatus = selectedLog.order_sessions?.status ?? null;
-                                    const paymentStatus =
-                                        sessionStatus === "completed" ? "paid"
-                                            : sessionStatus === "ongoing" ? "partial"
-                                                : "unpaid";
-                                    return <Badge value={paymentStatus} labels={PAYMENT_STATUS_LABELS} colors={PAYMENT_STATUS_COLORS} />;
-                                })()}
                             </div>
-                            <div className="flex justify-between pb-2">
-                                <span className="text-gray-500">Fulfillment</span>
-                                <span className="font-medium">
-                                    {FULFILLMENT_LABELS[selectedLog.fulfillment_type] ?? selectedLog.fulfillment_type}
-                                </span>
-                            </div>
-                        </div>
+                        </>
                     )}
-                    <DialogFooter>
-                        <Button type="button" variant="outline" onClick={() => setIsViewModalOpen(false)} className="w-full sm:w-auto">
-                            Close
-                        </Button>
-                    </DialogFooter>
                 </DialogContent>
             </Dialog>
 
@@ -1543,97 +1673,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                         variant="outline"
                                         size="sm"
                                         className="w-full sm:w-auto border border-[#2FA9D9] text-[#2FA9D9] hover:bg-[#2FA9D9]/5"
-                                        onClick={() => {
-                                            const { sessionId, address, logs } = activeSessionDetails;
-                                            const today = format(new Date(), "MMMM d, yyyy");
-
-                                            // Generate HTML content for Word
-                                            const htmlContent = `
-                                            <html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word' xmlns='http://www.w3.org/TR/REC-html40'>
-                                            <head>
-                                                <meta charset='utf-8'>
-                                                <title>Session Report</title>
-                                                <style>
-                                                    body { font-family: 'Arial', sans-serif; line-height: 1.6; color: #333; }
-                                                    .report-header { text-align: center; border-bottom: 2px solid #2FA9D9; padding-bottom: 10px; margin-bottom: 20px; }
-                                                    .report-header h1 { color: #2FA9D9; margin: 0; font-size: 24pt; }
-                                                    .report-header p { margin: 5px 0; color: #666; font-size: 10pt; }
-                                                    .meta-info { margin-bottom: 30px; background: #f9f9f9; padding: 15px; border-radius: 8px; }
-                                                    .meta-info p { margin: 3px 0; font-size: 11pt; }
-                                                    .meta-info b { color: #2FA9D9; }
-                                                    table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-                                                    th { background-color: #2FA9D9; color: white; padding: 12px; text-align: left; font-size: 10pt; border: 1px solid #2FA9D9; }
-                                                    td { padding: 10px; border: 1px solid #eee; font-size: 10pt; vertical-align: top; }
-                                                    tr:nth-child(even) { background-color: #fafafa; }
-                                                    .total-row { background-color: #f0f9ff !important; font-weight: bold; }
-                                                    .footer { margin-top: 40px; text-align: center; font-size: 9pt; color: #999; border-top: 1px solid #eee; padding-top: 10px; }
-                                                    .status-badge { padding: 2px 8px; border-radius: 4px; font-size: 8pt; font-weight: bold; }
-                                                </style>
-                                            </head>
-                                            <body>
-                                                <div class="report-header">
-                                                    <h1>DAILY LOGS REPORT</h1>
-                                                    <p>Water Station Management System • Kwago Dashboard</p>
-                                                </div>
-
-                                                <div class="meta-info">
-                                                    <p><b>Session ID:</b> ${sessionId}</p>
-                                                    <p><b>Location:</b> ${address}</p>
-                                                    <p><b>Report Date:</b> ${today}</p>
-                                                    <p><b>Total Entries:</b> ${logs.length}</p>
-                                                </div>
-
-                                                <table>
-                                                    <thead>
-                                                        <tr>
-                                                            <th>Date</th>
-                                                            <th>Customer</th>
-                                                            <th>Product Details</th>
-                                                            <th>Quantity</th>
-                                                            <th>Amount</th>
-                                                            <th>Status</th>
-                                                        </tr>
-                                                    </thead>
-                                                    <tbody>
-                                                        ${logs.map(log => {
-                                                const quantity = log.quantity ?? 1;
-                                                const wType = log.water_type || "mineral";
-                                                const cType = log.container_type || "round";
-                                                const price = log.total_price ?? (quantity * 5 * (wType === "alkaline" ? 50 : 35));
-                                                return `
-                                                                <tr>
-                                                                    <td>${format(new Date(log.log_date), "MMM d, yyyy")}</td>
-                                                                    <td>${log.customer_name}</td>
-                                                                    <td>${cType} • ${wType}</td>
-                                                                    <td>${quantity}</td>
-                                                                    <td>₱${price.toLocaleString()}</td>
-                                                                    <td>${log.status || "ongoing"}</td>
-                                                                </tr>
-                                                            `;
-                                            }).join('')}
-                                                    </tbody>
-                                                </table>
-
-                                                <div class="footer">
-                                                    <p>© ${new Date().getFullYear()} Water Station Management. Generated via Kwago Dashboard.</p>
-                                                </div>
-                                            </body>
-                                            </html>
-                                        `;
-
-                                            const blob = new Blob(['\ufeff', htmlContent], {
-                                                type: 'application/msword'
-                                            });
-
-                                            const url = URL.createObjectURL(blob);
-                                            const link = document.createElement('a');
-                                            link.href = url;
-                                            link.download = `Session_Report_${sessionId}.doc`;
-                                            document.body.appendChild(link);
-                                            link.click();
-                                            document.body.removeChild(link);
-                                            URL.revokeObjectURL(url);
-                                        }}
+                                        onClick={() => handleDownloadSessionReport(activeSessionDetails)}
                                     >
                                         <Printer className="w-4 h-4 mr-2" />
                                         Download Word Doc
