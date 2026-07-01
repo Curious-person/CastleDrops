@@ -927,13 +927,15 @@ export default function SettingsPage() {
             <DialogTitle className="text-lg font-bold text-gray-900 flex items-center gap-2">
               <AlertTriangle className="w-5 h-5 text-rose-600" /> Irreversible Account Deletion
             </DialogTitle>
-            <DialogDescription className="space-y-2 text-xs">
-              <p>
-                <strong>Warning:</strong> You are about to initiate deletion of your water station configuration.
-              </p>
-              <p>
-                This action wipes the station profile, historical water log files, orders data, customer accounts, and settings maps. It is impossible to recover this information.
-              </p>
+            <DialogDescription asChild>
+              <div className="space-y-2 text-xs">
+                <div>
+                  <strong>Warning:</strong> You are about to initiate deletion of your water station configuration.
+                </div>
+                <div>
+                  This action wipes the station profile, historical water log files, orders data, customer accounts, and settings maps. It is impossible to recover this information.
+                </div>
+              </div>
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="pt-4 flex-col sm:flex-row gap-2">
