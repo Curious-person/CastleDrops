@@ -11,7 +11,6 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { format } from "date-fns";
 import { createOrderAndRecordPayment } from "@/app/actions/payments";
 import { getStationPricing } from "@/app/actions/settings";
 
@@ -88,11 +87,6 @@ const WATER_LABELS: Record<WaterType, string> = {
     mineral: "Mineral",
 };
 
-const FULFILLMENT_LABELS: Record<FulfillmentType, string> = {
-    delivery: "Delivery",
-    pickup: "Pick-up",
-};
-
 const STATUS_CONFIG: Record<OrderStatus, { icon: React.ReactNode; label: string; desc: string; selectedBorder: string; selectedBg: string; selectedText: string; checkBg: string }> = {
     ongoing: {
         icon: <Clock className="w-6 h-6 text-[#2FA9D9]" />,
@@ -125,14 +119,7 @@ const STATUS_CONFIG: Record<OrderStatus, { icon: React.ReactNode; label: string;
 
 // ─── Helper Components ────────────────────────────────────────────────────────
 
-function SummaryRow({ label, value }: { label: string; value: string }) {
-    return (
-        <div className="flex justify-between items-center text-sm py-1.5 border-b border-gray-100 last:border-0">
-            <span className="text-gray-500">{label}</span>
-            <span className="font-medium text-gray-800 text-right max-w-[60%]">{value}</span>
-        </div>
-    );
-}
+
 
 function OptionCard({
     selected,
@@ -719,7 +706,7 @@ function MultiStepForm() {
                                             <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-semibold">₱</span>
                                         </div>
                                         <p className="text-[10px] text-gray-400">
-                                            Enter the exact amount received from the customer. Click "Skip Payment & Save Order" below if this order is not paid yet.
+                                            Enter the exact amount received from the customer. Click &quot;Skip Payment &amp; Save Order&quot; below if this order is not paid yet.
                                         </p>
                                     </div>
                                 </div>
