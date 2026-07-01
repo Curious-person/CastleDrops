@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import {
   User, Store, DollarSign, Shield, LogOut, Trash2, CheckCircle2,
   AlertTriangle, Save, RefreshCw, KeyRound, Bell, Phone,
-  Clock, ShieldAlert, BadgeCheck, FileCheck2
+  Clock, ShieldAlert, BadgeCheck, FileCheck2, ImagePlus
 } from "lucide-react";
 import PageContainer from "@/components/PageContainer";
 import { Button } from "@/components/ui/button";
@@ -17,8 +17,9 @@ import {
 } from "@/components/ui/dialog";
 import { getSettings, updateStationSettings, updateUserProfile } from "@/app/actions/settings";
 import { logout, updateUserPassword } from "@/app/actions/auth";
+import CarouselManager from "@/features/settings/CarouselManager";
 
-type TabId = "account" | "station" | "pricing" | "security";
+type TabId = "account" | "station" | "pricing" | "carousel" | "security";
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -272,6 +273,7 @@ export default function SettingsPage() {
     { id: "account" as TabId, label: "Account Profile", icon: User, description: "Personal details & alerts" },
     { id: "station" as TabId, label: "Station Config", icon: Store, description: "Brand name, address & permit" },
     { id: "pricing" as TabId, label: "Product Pricing", icon: DollarSign, description: "Water rates per container" },
+    { id: "carousel" as TabId, label: "Login Carousel", icon: ImagePlus, description: "Manage login page images" },
     { id: "security" as TabId, label: "Security & Session", icon: Shield, description: "Danger zone & session tools" }
   ];
 
@@ -745,7 +747,12 @@ export default function SettingsPage() {
               </form>
             )}
 
-            {/* ─── T4: SECURITY & SESSION TAB ─── */}
+            {/* ─── T4: LOGIN CAROUSEL TAB ─── */}
+            {activeTab === "carousel" && (
+              <CarouselManager />
+            )}
+
+            {/* ─── T5: SECURITY & SESSION TAB ─── */}
             {activeTab === "security" && (
               <div className="space-y-6">
                 {/* Header */}

@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { cn } from "@/lib/utils";
 import { login, sendPasswordResetEmail } from "@/app/actions/auth";
+import { AuthCarousel } from "@/components/auth-carousel";
 
 // ─── Validation Schemas ───────────────────────────────────────────────────────
 
@@ -35,7 +36,7 @@ function LoginFormContent() {
   const [successMessage, setSuccessMessage] = useState("");
   const [view, setView] = useState<ActiveView>('login');
   const [submittedEmail, setSubmittedEmail] = useState("");
-  
+
   const router = useRouter();
   const searchParams = useSearchParams();
 
@@ -68,9 +69,9 @@ function LoginFormContent() {
     setIsLoading(true);
     setError("");
     setSuccessMessage("");
-    
+
     const result = await login(data);
-    
+
     if (result.error) {
       setError(result.error);
       setIsLoading(false);
@@ -83,10 +84,10 @@ function LoginFormContent() {
     setIsLoading(true);
     setError("");
     setSuccessMessage("");
-    
+
     const origin = typeof window !== "undefined" ? window.location.origin : "";
     const result = await sendPasswordResetEmail(data.email, origin);
-    
+
     if (result.error) {
       setError(result.error);
       setIsLoading(false);
@@ -129,7 +130,7 @@ function LoginFormContent() {
 
         {/* Dynamic Form Area — vertically centred */}
         <div className="w-full max-w-sm mx-auto space-y-8">
-          
+
           {/* ────────────────── 1. LOGIN VIEW ────────────────── */}
           {view === 'login' && (
             <>
@@ -364,30 +365,8 @@ function LoginFormContent() {
       </div>
 
       {/* ─── Right Panel ─── */}
-      <div className="hidden lg:flex flex-1 items-center justify-center bg-[#e7f6fc] border-l border-sky-100">
-        <div className="flex flex-col items-center justify-center gap-4 rounded-2xl border-2 border-dashed border-sky-200 w-[80%] h-[80%] text-center p-12">
-          <div className="w-16 h-16 rounded-full bg-sky-100 border-2 border-dashed border-sky-300 flex items-center justify-center">
-            <svg
-              xmlns="http://www.w3.org/2000/svg"
-              className="w-8 h-8 text-sky-400"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-              strokeWidth={1.5}
-              aria-hidden="true"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3 21h18M3 10.5h18M3 7.5h18M3 4.5h18"
-              />
-            </svg>
-          </div>
-          <p className="text-sm font-medium text-sky-500">Image / Illustration</p>
-          <p className="text-xs text-sky-400 max-w-[200px]">
-            Drop your marketing image or hero illustration here.
-          </p>
-        </div>
+      <div className="hidden lg:block flex-1 relative border-l border-sky-100 overflow-hidden">
+        <AuthCarousel />
       </div>
     </div>
   );

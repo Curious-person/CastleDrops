@@ -107,3 +107,17 @@ Daily operational logs for water refilling business
 | `email_alerts` | `bool` |  |
 | `updated_at` | `timestamptz` |  Nullable |
 
+## Table `login_carousel_images`
+
+### Columns
+
+| Name | Type | Constraints |
+|------|------|-------------|
+| `id` | `uuid` | Primary |
+| `cloudinary_url` | `text` |  |
+| `cloudinary_public_id` | `text` |  |
+| `sequence_order` | `int4` |  |
+| `is_active` | `bool` |  |
+| `created_at` | `timestamptz` |  Nullable |
+| `updated_at` | `timestamptz` |  Nullable |
+
