@@ -1,9 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
     Users, Plus, Search, Trash2, Edit, Eye, Phone, MapPin, Flag,
-    ShoppingBag, Droplet, Waves, SlidersHorizontal, FileText
+    ShoppingBag, Droplet, Waves, SlidersHorizontal, FileText, Loader2
 } from "lucide-react";
 import PageContainer from "@/components/PageContainer";
 import { Button } from "@/components/ui/button";
@@ -19,107 +19,22 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Separator } from "@/components/ui/separator";
 
-// Types
-export type WaterPreference = "alkaline" | "mineral" | "both";
-
-export interface Customer {
-    id: string;
-    name: string;
-    address: string;
-    phone: string; // Maps to phone in DB schema
-    landmark: string;
-    water_preference: WaterPreference;
-    total_orders: number;
-    alkaline_orders: number;
-    mineral_orders: number;
-    notes: string;
-    created_at?: string;
-}
-
-// Initial Static Data based on sql.md database schema mapping
-const INITIAL_CUSTOMERS: Customer[] = [
-    {
-        id: "cust-1",
-        name: "Juan Dela Cruz",
-        address: "123 Mabini St, Barangay 667, Ermita, Manila",
-        phone: "0917 123 4567",
-        landmark: "Near Ermita Barangay Hall",
-        water_preference: "alkaline",
-        total_orders: 15,
-        alkaline_orders: 15,
-        mineral_orders: 0,
-        notes: "Prefers morning delivery around 9 AM. Always pays with GCash. Usually orders 3 round containers.",
-        created_at: "2026-05-10T08:30:00Z"
-    },
-    {
-        id: "cust-2",
-        name: "Maria Santos",
-        address: "456 Rizal Avenue, Pasay City",
-        phone: "0918 765 4321",
-        landmark: "Opposite Petron Gas Station",
-        water_preference: "mineral",
-        total_orders: 28,
-        alkaline_orders: 4,
-        mineral_orders: 24,
-        notes: "Deliver to Santos Grocery Store. Prefers flat containers. Standard weekly drop-off on Wednesday afternoons.",
-        created_at: "2026-05-12T10:15:00Z"
-    },
-    {
-        id: "cust-3",
-        name: "Pedro Penduko",
-        address: "789 Bonifacio Street, Quezon City",
-        phone: "0922 888 9999",
-        landmark: "Beside 7-Eleven Convenience Store",
-        water_preference: "both",
-        total_orders: 42,
-        alkaline_orders: 22,
-        mineral_orders: 20,
-        notes: "Requires both alkaline (for drinking) and mineral (for coffee maker). Usually orders 5 containers total. Cash on delivery.",
-        created_at: "2026-05-15T14:22:00Z"
-    },
-    {
-        id: "cust-4",
-        name: "Ana Kalang",
-        address: "101 Katipunan Avenue, Quezon City",
-        phone: "0933 444 5555",
-        landmark: "Near Gate 3 of Ateneo De Manila University",
-        water_preference: "alkaline",
-        total_orders: 9,
-        alkaline_orders: 9,
-        mineral_orders: 0,
-        notes: "Leave with building guard at lobby if not home. Gate code is #4321.",
-        created_at: "2026-06-01T09:45:00Z"
-    },
-    {
-        id: "cust-5",
-        name: "Jose Rizal",
-        address: "202 Bagumbayan Lane, Calamba, Laguna",
-        phone: "0999 000 1111",
-        landmark: "Near Rizal Historical Shrine",
-        water_preference: "mineral",
-        total_orders: 12,
-        alkaline_orders: 0,
-        mineral_orders: 12,
-        notes: "Prefers flat containers. Hard to reach on phone, send Viber message instead.",
-        created_at: "2026-06-05T11:00:00Z"
-    },
-    {
-        id: "cust-6",
-        name: "Corazon Aquino",
-        address: "777 Times Street, West Triangle, Quezon City",
-        phone: "0915 222 3333",
-        landmark: "Near West Triangle Park",
-        water_preference: "both",
-        total_orders: 31,
-        alkaline_orders: 16,
-        mineral_orders: 15,
-        notes: "Orders every Monday. Deliver to the back gate. Ring bell twice.",
-        created_at: "2026-06-10T16:40:00Z"
-    }
-];
+// Import types and actions from server actions
+import {
+    Customer,
+    WaterPreference,
+    getCustomers,
+    createCustomer,
+    updateCustomer,
+    deleteCustomer
+} from "@/app/actions/customers";
 
 export default function Customers() {
-    const [customers, setCustomers] = useState<Customer[]>(INITIAL_CUSTOMERS);
+    const [customers, setCustomers] = useState<Customer[]>([]);
+    const [isInitialLoading, setIsInitialLoading] = useState(true);
+    const [isMutating, setIsMutating] = useState(false);
+    const [apiError, setApiError] = useState("");
+    
     const [searchQuery, setSearchQuery] = useState("");
     const [prefFilter, setPrefFilter] = useState<"all" | WaterPreference>("all");
 
@@ -130,15 +45,31 @@ export default function Customers() {
     const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
     const [deleteId, setDeleteId] = useState<string | null>(null);
 
-    // Form State
-    const [formData, setFormData] = useState<Omit<Customer, "id" | "total_orders" | "alkaline_orders" | "mineral_orders">>({
+    // Form State — water_preference is excluded because it's auto-computed from order history
+    const [formData, setFormData] = useState<Omit<Customer, "id" | "total_orders" | "alkaline_orders" | "mineral_orders" | "water_preference">>({
         name: "",
         address: "",
         phone: "",
         landmark: "",
-        water_preference: "alkaline",
         notes: ""
     });
+
+    const fetchCustomers = async (showLoading = true) => {
+        if (showLoading) setIsInitialLoading(true);
+        setApiError("");
+        try {
+            const data = await getCustomers();
+            setCustomers(data);
+        } catch (err) {
+            setApiError((err as Error).message || "Failed to load customers from database.");
+        } finally {
+            if (showLoading) setIsInitialLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        fetchCustomers();
+    }, []);
 
     // Handle Create Click
     const handleOpenCreate = () => {
@@ -148,7 +79,6 @@ export default function Customers() {
             address: "",
             phone: "",
             landmark: "",
-            water_preference: "alkaline",
             notes: ""
         });
         setIsEditOpen(true);
@@ -163,7 +93,6 @@ export default function Customers() {
             address: customer.address,
             phone: customer.phone,
             landmark: customer.landmark,
-            water_preference: customer.water_preference,
             notes: customer.notes
         });
         setIsEditOpen(true);
@@ -176,47 +105,59 @@ export default function Customers() {
     };
 
     // Confirm Delete Customer
-    const confirmDelete = () => {
+    const confirmDelete = async () => {
         if (deleteId) {
-            setCustomers((prev) => prev.filter((c) => c.id !== deleteId));
-            // If the deleted customer was open in details modal, close it
-            if (selectedCustomer?.id === deleteId) {
-                setIsDetailsOpen(false);
-                setSelectedCustomer(null);
+            setIsMutating(true);
+            setApiError("");
+            try {
+                await deleteCustomer(deleteId);
+                setCustomers((prev) => prev.filter((c) => c.id !== deleteId));
+                // If the deleted customer was open in details modal, close it
+                if (selectedCustomer?.id === deleteId) {
+                    setIsDetailsOpen(false);
+                    setSelectedCustomer(null);
+                }
+                setDeleteId(null);
+            } catch (err) {
+                setApiError((err as Error).message || "Failed to delete customer.");
+            } finally {
+                setIsMutating(false);
             }
-            setDeleteId(null);
         }
     };
 
     // Handle Save Form (Add or Edit)
-    const handleSave = (e: React.FormEvent) => {
+    const handleSave = async (e: React.FormEvent) => {
         e.preventDefault();
-        if (editingCustomer) {
-            // Update Existing
-            setCustomers((prev) =>
-                prev.map((c) =>
-                    c.id === editingCustomer.id
-                        ? { ...c, ...formData }
-                        : c
-                )
-            );
-            // Sync details view if open
-            if (selectedCustomer?.id === editingCustomer.id) {
-                setSelectedCustomer((prev) => prev ? { ...prev, ...formData } : null);
+        setIsMutating(true);
+        setApiError("");
+        try {
+            if (editingCustomer) {
+                // Update Existing
+                await updateCustomer(editingCustomer.id, formData);
+                setCustomers((prev) =>
+                    prev.map((c) =>
+                        c.id === editingCustomer.id
+                            ? { ...c, ...formData }
+                            : c
+                    )
+                );
+                // Sync details view if open
+                if (selectedCustomer?.id === editingCustomer.id) {
+                    setSelectedCustomer((prev) => prev ? { ...prev, ...formData } : null);
+                }
+                setIsEditOpen(false);
+            } else {
+                // Add New
+                const newCustomer = await createCustomer(formData);
+                setCustomers((prev) => [newCustomer, ...prev]);
+                setIsEditOpen(false);
             }
-        } else {
-            // Add New
-            const newCustomer: Customer = {
-                id: `cust-${Math.random().toString(36).substring(2, 9)}`,
-                ...formData,
-                total_orders: 0,
-                alkaline_orders: 0,
-                mineral_orders: 0,
-                created_at: new Date().toISOString()
-            };
-            setCustomers((prev) => [newCustomer, ...prev]);
+        } catch (err) {
+            setApiError((err as Error).message || "Failed to save customer.");
+        } finally {
+            setIsMutating(false);
         }
-        setIsEditOpen(false);
     };
 
     // Trigger details modal on row selection
@@ -247,6 +188,7 @@ export default function Customers() {
     const mineralUsers = customers.filter(
         (c) => c.water_preference === "mineral" || c.water_preference === "both"
     ).length;
+
 
     // DataTable columns definition
     const columns: Column<Customer>[] = [
@@ -302,6 +244,10 @@ export default function Customers() {
                     case "both":
                         badgeClass = "bg-purple-100 text-purple-700";
                         badgeLabel = "Both Types";
+                        break;
+                    default:
+                        badgeClass = "bg-gray-100 text-gray-500";
+                        badgeLabel = "No order yet";
                         break;
                 }
                 return (
@@ -380,6 +326,10 @@ export default function Customers() {
                 badgeClass = "bg-purple-100 text-purple-700";
                 badgeLabel = "Both";
                 break;
+            default:
+                badgeClass = "bg-gray-100 text-gray-500";
+                badgeLabel = "No order yet";
+                break;
         }
 
         return (
@@ -457,6 +407,11 @@ export default function Customers() {
     return (
         <PageContainer title="Customers">
             <div className="space-y-6 p-4 sm:p-6 lg:p-8">
+                {apiError && (
+                    <div className="p-3 text-sm text-rose-700 bg-rose-50 border border-rose-200 rounded-lg">
+                        {apiError}
+                    </div>
+                )}
                 
                 {/* ─── STATS CARDS GRID ─── */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -540,6 +495,7 @@ export default function Customers() {
                                     <SelectItem value="alkaline">Alkaline Preference</SelectItem>
                                     <SelectItem value="mineral">Mineral Preference</SelectItem>
                                     <SelectItem value="both">Both Types Preference</SelectItem>
+                                    <SelectItem value="no_order_yet">No Order Yet</SelectItem>
                                 </SelectContent>
                             </Select>
                         </div>
@@ -556,19 +512,26 @@ export default function Customers() {
                 </div>
 
                 {/* ─── CUSTOMERS TABLE ─── */}
-                <DataTable
-                    columns={columns}
-                    data={filteredCustomers}
-                    keyExtractor={(item) => item.id}
-                    onRowClick={handleRowClick}
-                    emptyIcon={<Users className="w-10 h-10 text-gray-200" />}
-                    emptyTitle="No customers found"
-                    emptyDescription="Refine your search or click 'Add Customer' to create one"
-                    renderMobileItem={renderMobileItem}
-                />
+                {isInitialLoading ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-white border border-gray-100 rounded-xl space-y-3">
+                        <Loader2 className="w-8 h-8 text-[#2FA9D9] animate-spin" />
+                        <p className="text-sm text-gray-500 font-medium font-sans animate-pulse">Loading customer directory...</p>
+                    </div>
+                ) : (
+                    <DataTable
+                        columns={columns}
+                        data={filteredCustomers}
+                        keyExtractor={(item) => item.id}
+                        onRowClick={handleRowClick}
+                        emptyIcon={<Users className="w-10 h-10 text-gray-200" />}
+                        emptyTitle="No customers found"
+                        emptyDescription="Refine your search or click 'Add Customer' to create one"
+                        renderMobileItem={renderMobileItem}
+                    />
+                )}
 
                 {/* ─── ADD/EDIT DIALOG ─── */}
-                <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+                <Dialog open={isEditOpen} onOpenChange={(open) => !isMutating && setIsEditOpen(open)}>
                     <DialogContent className="sm:max-w-md max-w-[95vw]">
                         <DialogHeader>
                             <DialogTitle className="text-lg font-bold text-gray-900">
@@ -587,6 +550,7 @@ export default function Customers() {
                                     id="name"
                                     placeholder="Juan Dela Cruz"
                                     required
+                                    disabled={isMutating}
                                     value={formData.name}
                                     onChange={(e) => setFormData((p) => ({ ...p, name: e.target.value }))}
                                 />
@@ -599,6 +563,7 @@ export default function Customers() {
                                     id="phone"
                                     type="tel"
                                     placeholder="e.g. 0917 123 4567"
+                                    disabled={isMutating}
                                     value={formData.phone}
                                     onChange={(e) => setFormData((p) => ({ ...p, phone: e.target.value }))}
                                 />
@@ -611,6 +576,7 @@ export default function Customers() {
                                     id="address"
                                     placeholder="House #, Street Name, Barangay, City"
                                     required
+                                    disabled={isMutating}
                                     value={formData.address}
                                     onChange={(e) => setFormData((p) => ({ ...p, address: e.target.value }))}
                                 />
@@ -622,27 +588,21 @@ export default function Customers() {
                                 <Input
                                     id="landmark"
                                     placeholder="e.g. Near Barangay Hall / Opposite Gas Station"
+                                    disabled={isMutating}
                                     value={formData.landmark}
                                     onChange={(e) => setFormData((p) => ({ ...p, landmark: e.target.value }))}
                                 />
                             </div>
 
-                            {/* Water Preference */}
+                            {/* Water Preference — auto-determined from order history, not editable */}
                             <div className="grid gap-2">
-                                <Label htmlFor="water_preference" className="text-xs font-semibold text-gray-700">Water Type Preference</Label>
-                                <Select
-                                    value={formData.water_preference}
-                                    onValueChange={(val) => setFormData((p) => ({ ...p, water_preference: val as WaterPreference }))}
-                                >
-                                    <SelectTrigger className="w-full">
-                                        <SelectValue placeholder="Select water type preference" />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        <SelectItem value="alkaline">Alkaline Water</SelectItem>
-                                        <SelectItem value="mineral">Mineral Water</SelectItem>
-                                        <SelectItem value="both">Both (Alkaline & Mineral)</SelectItem>
-                                    </SelectContent>
-                                </Select>
+                                <Label className="text-xs font-semibold text-gray-700">Water Type Preference</Label>
+                                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 border border-gray-200 rounded-md">
+                                    <Droplet className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                                    <span className="text-xs text-gray-500 leading-snug">
+                                        Automatically determined from the customer&apos;s order history. Will show <strong>No order yet</strong> until the first order is placed.
+                                    </span>
+                                </div>
                             </div>
 
                             {/* Notes */}
@@ -651,6 +611,7 @@ export default function Customers() {
                                 <Textarea
                                     id="notes"
                                     placeholder="Add delivery instructions, container requests, payment preferences, etc."
+                                    disabled={isMutating}
                                     value={formData.notes}
                                     onChange={(e) => setFormData((p) => ({ ...p, notes: e.target.value }))}
                                 />
@@ -661,14 +622,17 @@ export default function Customers() {
                                     type="button"
                                     variant="outline"
                                     onClick={() => setIsEditOpen(false)}
+                                    disabled={isMutating}
                                     className="w-full sm:w-auto"
                                 >
                                     Cancel
                                 </Button>
                                 <Button
                                     type="submit"
-                                    className="bg-[#2FA9D9] hover:bg-[#2195c0] text-white w-full sm:w-auto transition-colors"
+                                    disabled={isMutating}
+                                    className="bg-[#2FA9D9] hover:bg-[#2195c0] text-white w-full sm:w-auto transition-colors flex items-center justify-center gap-1.5"
                                 >
+                                    {isMutating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                     Save Customer
                                 </Button>
                             </DialogFooter>
@@ -745,13 +709,17 @@ export default function Customers() {
                                                             ? "bg-sky-100 text-sky-700"
                                                             : selectedCustomer.water_preference === "mineral"
                                                             ? "bg-emerald-100 text-emerald-700"
-                                                            : "bg-purple-100 text-purple-700"
+                                                            : selectedCustomer.water_preference === "both"
+                                                            ? "bg-purple-100 text-purple-700"
+                                                            : "bg-gray-100 text-gray-500"
                                                     }`}>
                                                         {selectedCustomer.water_preference === "alkaline"
                                                             ? "Alkaline Water"
                                                             : selectedCustomer.water_preference === "mineral"
                                                             ? "Mineral Water"
-                                                            : "Both Types"}
+                                                            : selectedCustomer.water_preference === "both"
+                                                            ? "Both Types"
+                                                            : "No order yet"}
                                                     </span>
                                                 </div>
                                                 <div className="space-y-1">
@@ -845,7 +813,7 @@ export default function Customers() {
                 </Dialog>
 
                 {/* ─── DELETE CONFIRM DIALOG ─── */}
-                <Dialog open={deleteId !== null} onOpenChange={(open) => !open && setDeleteId(null)}>
+                <Dialog open={deleteId !== null} onOpenChange={(open) => !isMutating && !open && setDeleteId(null)}>
                     <DialogContent className="sm:max-w-md max-w-[95vw]">
                         <DialogHeader>
                             <DialogTitle className="text-lg font-bold text-gray-900">Delete Customer Record</DialogTitle>
@@ -857,14 +825,17 @@ export default function Customers() {
                             <Button
                                 variant="outline"
                                 onClick={() => setDeleteId(null)}
+                                disabled={isMutating}
                                 className="w-full sm:w-auto"
                             >
                                 Cancel
-                                </Button>
+                            </Button>
                             <Button
                                 onClick={confirmDelete}
-                                className="bg-rose-600 hover:bg-rose-700 text-white w-full sm:w-auto transition-colors"
+                                disabled={isMutating}
+                                className="bg-rose-600 hover:bg-rose-700 text-white w-full sm:w-auto transition-colors flex items-center justify-center gap-1.5"
                             >
+                                {isMutating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                                 Yes, Delete Customer
                             </Button>
                         </DialogFooter>

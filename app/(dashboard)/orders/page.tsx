@@ -3,11 +3,11 @@ import OrdersClient from "@/features/orders/components/OrdersClient";
 async function fetchOrders(query?: string, sort?: string) {
     const supabase = await createClient();
 
-    let dbQuery = supabase.from("orders").select("*");
+    let dbQuery = supabase.from("orders").select("*, order_sessions(status, address, payments(amount))");
 
     if (query) {
         dbQuery = dbQuery.or(
-            `customer_name.ilike.%${query}%,customer_address.ilike.%${query}%,payment_method.ilike.%${query}%`
+            `customer_name.ilike.%${query}%,customer_address.ilike.%${query}%`
         );
     }
 

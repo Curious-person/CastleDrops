@@ -7,16 +7,9 @@ type Order = {
     water_type: string;
     customer_name: string;
     customer_address: string;
-    payment_method: string;
     fulfillment_type: string;
 };
 
-const PAYMENT_LABELS: Record<string, string> = {
-    gcash:         "GCash",
-    cash:          "Cash",
-    bank_transfer: "Bank Transfer",
-    credit:        "Credit / Card",
-};
 
 const FULFILLMENT_LABELS: Record<string, string> = {
     delivery: "Delivery",
@@ -56,7 +49,7 @@ export default function PrintableOrders({ logs }: PrintableOrdersProps) {
                             <td className="border border-gray-300 p-2">{log.customer_address || "—"}</td>
                             <td className="border border-gray-300 p-2 capitalize">{log.container_type || "—"}</td>
                             <td className="border border-gray-300 p-2 capitalize">{log.water_type || "—"}</td>
-                            <td className="border border-gray-300 p-2">{PAYMENT_LABELS[log.payment_method] ?? log.payment_method ?? "—"}</td>
+                            <td className="border border-gray-300 p-2 text-xs text-gray-500 italic">See session record</td>
                             <td className="border border-gray-300 p-2">{FULFILLMENT_LABELS[log.fulfillment_type] ?? log.fulfillment_type ?? "—"}</td>
                         </tr>
                     ))}
