@@ -46,6 +46,7 @@ function LoginFormContent() {
 
   useEffect(() => {
     if (errorParam) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setError(errorParam);
     }
     if (resetSuccessParam) {

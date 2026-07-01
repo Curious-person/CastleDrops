@@ -62,8 +62,8 @@ export default function WaterLogs() {
         try {
             const data = await getWaterLogs();
             setLogs(data);
-        } catch (err: any) {
-            setApiError(err.message || "Failed to load water logs.");
+        } catch (err) {
+            setApiError((err as Error).message || "Failed to load water logs.");
         } finally {
             if (showLoading) setIsInitialLoading(false);
         }
@@ -117,8 +117,8 @@ export default function WaterLogs() {
                 setLogs((prev) => [newLog, ...prev]);
             }
             setIsOpen(false);
-        } catch (err: any) {
-            setApiError(err.message || "Failed to save water log.");
+        } catch (err) {
+            setApiError((err as Error).message || "Failed to save water log.");
         } finally {
             setIsMutating(false);
         }
@@ -131,8 +131,8 @@ export default function WaterLogs() {
             await deleteWaterLog(id);
             setLogs((prev) => prev.filter((log) => log.id !== id));
             setDeleteId(null);
-        } catch (err: any) {
-            setApiError(err.message || "Failed to delete water log.");
+        } catch (err) {
+            setApiError((err as Error).message || "Failed to delete water log.");
         } finally {
             setIsMutating(false);
         }

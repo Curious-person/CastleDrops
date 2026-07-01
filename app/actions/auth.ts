@@ -99,8 +99,8 @@ export async function updateUserPassword(password: string) {
         cookieStore.delete("sb-refresh-token")
 
         return { success: true }
-    } catch (e: any) {
-        return { error: e.message || "Failed to update password." }
+    } catch (e) {
+        return { error: (e as Error).message || "Failed to update password." }
     }
 }
 

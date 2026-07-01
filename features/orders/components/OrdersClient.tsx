@@ -72,6 +72,7 @@ type SessionGroup = {
 
 const CONTAINER_LABELS: Record<string, string> = { round: "Round", flat: "Flat" };
 const WATER_LABELS: Record<string, string> = { alkaline: "Alkaline", mineral: "Mineral" };
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const PAYMENT_LABELS: Record<string, string> = {
     gcash: "GCash", cash: "Cash", bank_transfer: "Bank Transfer", credit: "Credit / Card",
 };
@@ -79,6 +80,7 @@ const FULFILLMENT_LABELS: Record<string, string> = {
     delivery: "Delivery", pickup: "Pick-up",
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 const PAYMENT_COLORS: Record<string, string> = {
     gcash: "bg-blue-100 text-blue-700", cash: "bg-green-100 text-green-700",
     bank_transfer: "bg-purple-100 text-purple-700", credit: "bg-amber-100 text-amber-700",

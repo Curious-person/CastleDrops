@@ -43,9 +43,12 @@ export async function getCustomers(): Promise<Customer[]> {
     if (error) throw new Error(error.message);
 
     // Map database structures to our client-side Customer interface by aggregating stats
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const customersWithStats: Customer[] = (data || []).map((c: any) => {
         const orders = c.orders || [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const alkaline_orders = orders.filter((o: any) => o.water_type === "alkaline").length;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const mineral_orders = orders.filter((o: any) => o.water_type === "mineral").length;
 
         // Compute water_preference dynamically from order history

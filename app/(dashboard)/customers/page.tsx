@@ -60,8 +60,8 @@ export default function Customers() {
         try {
             const data = await getCustomers();
             setCustomers(data);
-        } catch (err: any) {
-            setApiError(err.message || "Failed to load customers from database.");
+        } catch (err) {
+            setApiError((err as Error).message || "Failed to load customers from database.");
         } finally {
             if (showLoading) setIsInitialLoading(false);
         }
@@ -118,8 +118,8 @@ export default function Customers() {
                     setSelectedCustomer(null);
                 }
                 setDeleteId(null);
-            } catch (err: any) {
-                setApiError(err.message || "Failed to delete customer.");
+            } catch (err) {
+                setApiError((err as Error).message || "Failed to delete customer.");
             } finally {
                 setIsMutating(false);
             }
@@ -153,8 +153,8 @@ export default function Customers() {
                 setCustomers((prev) => [newCustomer, ...prev]);
                 setIsEditOpen(false);
             }
-        } catch (err: any) {
-            setApiError(err.message || "Failed to save customer.");
+        } catch (err) {
+            setApiError((err as Error).message || "Failed to save customer.");
         } finally {
             setIsMutating(false);
         }
