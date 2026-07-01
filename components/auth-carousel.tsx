@@ -3,6 +3,7 @@
 import * as React from "react";
 import Autoplay from "embla-carousel-autoplay";
 import Image from "next/image";
+import { RefreshCw } from "lucide-react";
 import { getActiveCarouselImages } from "@/app/actions/carousel";
 
 import {
@@ -21,6 +22,7 @@ const FALLBACK_IMAGES = [
 
 export function AuthCarousel() {
   const [images, setImages] = React.useState<string[]>(FALLBACK_IMAGES);
+  const [loadedImages, setLoadedImages] = React.useState<Record<number, boolean>>({});
   const plugin = React.useRef(
     Autoplay({ delay: 3000, stopOnInteraction: false })
   );
@@ -48,12 +50,18 @@ export function AuthCarousel() {
         <CarouselContent className="h-full ml-0">
           {images.map((src, index) => (
             <CarouselItem key={src + index} className="pl-0 h-full relative w-full flex-none">
+              {!loadedImages[index] && (
+                <div className="absolute inset-0 flex items-center justify-center bg-sky-50 animate-pulse">
+                  <RefreshCw className="w-8 h-8 text-[#2FA9D9] animate-spin opacity-50" />
+                </div>
+              )}
               <Image
                 src={src}
                 alt={`Water station slide ${index + 1}`}
                 fill
-                className="object-cover"
+                className={`object-cover transition-opacity duration-500 ${loadedImages[index] ? "opacity-100" : "opacity-0"}`}
                 priority={index === 0}
+                onLoad={() => setLoadedImages((prev) => ({ ...prev, [index]: true }))}
               />
             </CarouselItem>
           ))}
