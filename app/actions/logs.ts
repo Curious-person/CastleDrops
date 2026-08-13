@@ -199,5 +199,51 @@ export async function updateSessionStatus(sessionId: string, status: string) {
     return { success: true };
 }
 
+export async function bulkApproveSessions(sessionIds: string[]) {
+    const supabase = await createClient();
+
+    // Update status of all orders within the approved sessions to 'delivered'
+    const { error: ordersError } = await supabase
+        .from("orders")
+        .update({ status: "delivered" })
+        .in("session_id", sessionIds);
+
+    if (ordersError) throw new Error(ordersError.message);
+
+    // Update status of the sessions themselves to 'completed'
+    const { error: sessionsError } = await supabase
+        .from("order_sessions")
+        .update({ status: "completed" })
+        .in("id", sessionIds);
+
+    if (sessionsError) throw new Error(sessionsError.message);
+
+    revalidatePath("/orders");
+    return { success: true };
+}
+
+export async function bulkDeleteSessions(sessionIds: string[]) {
+    const supabase = await createClient();
+
+    // Delete all orders within the sessions
+    const { error: ordersError } = await supabase
+        .from("orders")
+        .delete()
+        .in("session_id", sessionIds);
+
+    if (ordersError) throw new Error(ordersError.message);
+
+    // Delete the sessions themselves
+    const { error: sessionsError } = await supabase
+        .from("order_sessions")
+        .delete()
+        .in("id", sessionIds);
+
+    if (sessionsError) throw new Error(sessionsError.message);
+
+    revalidatePath("/orders");
+    return { success: true };
+}
+
 
 

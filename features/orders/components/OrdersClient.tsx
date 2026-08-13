@@ -20,9 +20,20 @@ import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { deleteLog, updateLogStatus, deleteSession, updateSession, updateSessionStatus } from "@/app/actions/logs";
+import { deleteLog, updateLogStatus, deleteSession, updateSession, updateSessionStatus, bulkApproveSessions, bulkDeleteSessions } from "@/app/actions/logs";
 import { getCustomers, type Customer } from "@/app/actions/customers";
 import { recordPayment } from "@/app/actions/payments";
+import BulkActionToolbar from "@/features/orders/components/BulkActionToolbar";
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -511,6 +522,21 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     const statTab = "today";
     const [sessionListTab, setSessionListTab] = useState("ongoing");
     const [paymentFilter, setPaymentFilter] = useState("all");
+
+    // Selection & Bulk Action States
+    const [selectedSessionIds, setSelectedSessionIds] = useState<string[]>([]);
+    const [bulkActionType, setBulkActionType] = useState<"approve" | "delete" | null>(null);
+    const [isBulkConfirmOpen, setIsBulkConfirmOpen] = useState(false);
+    const [isBulkPending, setIsBulkPending] = useState(false);
+
+    const searchQuery = searchParams.get("query")?.toString() || "";
+    const sortOption = searchParams.get("sort") || "option1";
+
+    // Reset selection when tab, filters, search or sort change
+    useEffect(() => {
+        setSelectedSessionIds([]);
+    }, [sessionListTab, paymentFilter, searchQuery, sortOption]);
+
     const [customers, setCustomers] = useState<Customer[]>([]);
     const [isLoadingCustomers, setIsLoadingCustomers] = useState(false);
     const [customerSearch, setCustomerSearch] = useState("");
@@ -743,6 +769,67 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
             if (result.success) { router.refresh(); }
         } catch (err) { console.error(err); }
         finally { setIsUpdatingStatus(false); }
+    };
+
+    const handleBulkApprove = async () => {
+        setIsBulkPending(true);
+        try {
+            const result = await bulkApproveSessions(selectedSessionIds);
+            if (result.success) {
+                setSelectedSessionIds([]);
+                setIsBulkConfirmOpen(false);
+                setBulkActionType(null);
+                router.refresh();
+            }
+        } catch (err: any) {
+            console.error(err);
+            alert(err.message || "Failed to approve sessions");
+        } finally {
+            setIsBulkPending(false);
+        }
+    };
+
+    const handleBulkDelete = async () => {
+        setIsBulkPending(true);
+        try {
+            const result = await bulkDeleteSessions(selectedSessionIds);
+            if (result.success) {
+                setSelectedSessionIds([]);
+                setIsBulkConfirmOpen(false);
+                setBulkActionType(null);
+                router.refresh();
+            }
+        } catch (err: any) {
+            console.error(err);
+            alert(err.message || "Failed to delete sessions");
+        } finally {
+            setIsBulkPending(false);
+        }
+    };
+
+    const renderGroupHeader = (sessionId: string, items: Order[]) => {
+        const sessionGroup = allSessions.find(g => g.sessionId === sessionId);
+        if (!sessionGroup) return null;
+        return (
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between w-full py-1 text-sm gap-2" onClick={(e) => e.stopPropagation()}>
+                <div className="flex flex-wrap items-center gap-2">
+                    <span className="font-bold text-gray-900">{sessionGroup.customerName}</span>
+                    <span className="text-xs text-gray-400 font-mono">({sessionId})</span>
+                    {sessionGroup.address && (
+                        <span className="text-xs text-gray-500 max-w-[200px] truncate">{sessionGroup.address}</span>
+                    )}
+                </div>
+                <div className="flex items-center gap-3">
+                    <Badge value={sessionGroup.paymentStatus} labels={PAYMENT_STATUS_LABELS} colors={PAYMENT_STATUS_COLORS} />
+                    <span className="text-xs font-semibold px-2 py-0.5 bg-sky-50 text-sky-700 rounded-full border border-sky-100">
+                        Owed: ₱{sessionGroup.totalOwed.toLocaleString()}
+                    </span>
+                    <span className="text-xs font-semibold px-2 py-0.5 bg-emerald-50 text-emerald-700 rounded-full border border-emerald-100">
+                        Paid: ₱{sessionGroup.totalPaid.toLocaleString()}
+                    </span>
+                </div>
+            </div>
+        );
     };
 
     // ── Grouping Logic ───────────────────────────────────────────────────────
@@ -1224,6 +1311,10 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                 setSelectedLog(item);
                                 setIsViewModalOpen(true);
                             }}
+                            selectedKeys={selectedSessionIds}
+                            onSelectedKeysChange={setSelectedSessionIds}
+                            groupByKey="session_id"
+                            renderGroupHeader={renderGroupHeader}
                         />
                     )}
                 </div>
@@ -1829,6 +1920,57 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
             />
 
             <PrintableOrders logs={initialData} />
+
+            <BulkActionToolbar
+                selectedCount={selectedSessionIds.length}
+                onApprove={() => {
+                    setBulkActionType("approve");
+                    setIsBulkConfirmOpen(true);
+                }}
+                onDelete={() => {
+                    setBulkActionType("delete");
+                    setIsBulkConfirmOpen(true);
+                }}
+                onCancel={() => setSelectedSessionIds([])}
+                isPending={isBulkPending}
+            />
+
+            <AlertDialog open={isBulkConfirmOpen} onOpenChange={setIsBulkConfirmOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>
+                            {bulkActionType === "approve"
+                                ? `Mark ${selectedSessionIds.length} session(s) as completed?`
+                                : `Delete ${selectedSessionIds.length} session(s)?`}
+                        </AlertDialogTitle>
+                        <AlertDialogDescription>
+                            {bulkActionType === "approve"
+                                ? "This will mark all orders in the selected sessions as delivered."
+                                : "This will remove all associated orders and cannot be undone."}
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isBulkPending}>
+                            Cancel
+                        </AlertDialogCancel>
+                        <AlertDialogAction
+                            disabled={isBulkPending}
+                            onClick={(e) => {
+                                e.preventDefault();
+                                if (bulkActionType === "approve") {
+                                    handleBulkApprove();
+                                } else {
+                                    handleBulkDelete();
+                                }
+                            }}
+                            variant={bulkActionType === "delete" ? "destructive" : "default"}
+                            className={bulkActionType === "approve" ? "bg-[#2FA9D9] hover:bg-[#2195c0] text-white font-semibold" : "font-semibold"}
+                        >
+                            {isBulkPending ? "Processing..." : "Confirm"}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
         </>
     );
 }
