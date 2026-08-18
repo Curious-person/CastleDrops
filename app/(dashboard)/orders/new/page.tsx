@@ -20,7 +20,7 @@ type ContainerType = "round" | "flat";
 type WaterType = "alkaline" | "mineral";
 type PaymentMethod = "gcash" | "cash" | "bank_transfer" | "credit";
 type FulfillmentType = "delivery" | "pickup";
-type OrderStatus = "ongoing" | "delivered" | "cancelled";
+type OrderStatus = "preparing" | "delivered" | "cancelled";
 
 interface OrderItem {
     water_type: WaterType;
@@ -88,9 +88,9 @@ const WATER_LABELS: Record<WaterType, string> = {
 };
 
 const STATUS_CONFIG: Record<OrderStatus, { icon: React.ReactNode; label: string; desc: string; selectedBorder: string; selectedBg: string; selectedText: string; checkBg: string }> = {
-    ongoing: {
+    preparing: {
         icon: <Clock className="w-6 h-6 text-[#2FA9D9]" />,
-        label: "Ongoing",
+        label: "Preparing",
         desc: "Order is active and in progress",
         selectedBorder: "border-[#2FA9D9]",
         selectedBg: "from-[#2FA9D9]/8 to-[#76D4F9]/5",
@@ -210,7 +210,7 @@ function MultiStepForm() {
         customer_address: sessionAddress || "",
         payment_method: null,
         fulfillment_type: null,
-        initial_status: "ongoing",
+        initial_status: "preparing",
     });
 
     const canProceed = (): boolean => {
@@ -231,9 +231,9 @@ function MultiStepForm() {
     };
 
     const calculateItemPrice = (item: OrderItem): number => {
-        const ratePerGallon = getRate(item.water_type, item.container_type);
-        const totalGallons = item.quantity * item.water_quantity * CONTAINER_GALLONS[item.container_type];
-        return totalGallons * ratePerGallon;
+        const ratePerQuantity = getRate(item.water_type, item.container_type);
+        const totalQuantity = item.quantity * item.water_quantity;
+        return totalQuantity * ratePerQuantity;
     };
 
     const calculateTotalPrice = (): number => {
@@ -263,16 +263,16 @@ function MultiStepForm() {
 
             const orderRows = activeItems.map(item => {
                 const gallons = CONTAINER_GALLONS[item.container_type];
-                const ratePerGallon = getRate(item.water_type, item.container_type);
+                const ratePerQuantity = getRate(item.water_type, item.container_type);
                 const total_gallons = item.quantity * item.water_quantity * gallons;
-                const total_price = total_gallons * ratePerGallon;
+                const total_price = item.quantity * item.water_quantity * ratePerQuantity;
 
                 return {
                     log_date,
                     container_type: item.container_type,
                     quantity: item.quantity * item.water_quantity,
                     water_type: item.water_type,
-                    price_per_gallon: ratePerGallon,
+                    price_per_gallon: ratePerQuantity,
                     total_gallons,
                     total_price,
                     customer_id: formData.customer_id,
@@ -411,8 +411,8 @@ function MultiStepForm() {
                                         {formData.items.map((item, index) => {
                                             const isSelected = item.quantity > 0;
                                             const Icon = item.water_type === "alkaline" ? Droplet : Waves;
-                                            const ratePerGallon = getRate(item.water_type, item.container_type);
-                                            const totalGal = item.quantity * item.water_quantity * CONTAINER_GALLONS[item.container_type];
+                                            const ratePerQuantity = getRate(item.water_type, item.container_type);
+                                            const totalQty = item.quantity * item.water_quantity;
                                             const itemPrice = calculateItemPrice(item);
 
                                             return (
@@ -436,7 +436,7 @@ function MultiStepForm() {
                                                                     {item.water_type} ({item.container_type})
                                                                 </div>
                                                                 <div className="text-[10px] text-gray-500 font-medium">
-                                                                    ₱{ratePerGallon}/gal • {CONTAINER_GALLONS[item.container_type]} gal
+                                                                    ₱{ratePerQuantity}/qty • {CONTAINER_GALLONS[item.container_type]} gal capacity
                                                                 </div>
                                                             </div>
                                                         </div>
@@ -533,7 +533,7 @@ function MultiStepForm() {
                                                     {/* Item Summary Price */}
                                                     {item.quantity > 0 && (
                                                         <div className="mt-4 pt-3 border-t border-gray-100/50 flex justify-between items-center text-xs font-semibold text-gray-500 animate-in fade-in">
-                                                            <span>{totalGal} gal total</span>
+                                                            <span>{totalQty} qty total</span>
                                                             <span className="text-[#2FA9D9] font-bold text-sm">₱{itemPrice.toLocaleString()}</span>
                                                         </div>
                                                     )}
@@ -623,7 +623,7 @@ function MultiStepForm() {
                                                         <div className="flex-1 min-w-0">
                                                             <div className={`font-semibold text-sm ${isSelected ? cfg.selectedText : "text-gray-800"}`}>
                                                                 {cfg.label}
-                                                                {status === "ongoing" && (
+                                                                {status === "preparing" && (
                                                                     <span className="ml-2 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-gray-100 text-gray-500">
                                                                         default
                                                                     </span>

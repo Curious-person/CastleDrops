@@ -5,7 +5,7 @@ import { useDebouncedCallback } from "use-debounce";
 import {
     PhilippinePeso, Plus, Search, Trash, Eye,
     CheckCircle2, XCircle, RotateCcw, Clock, PackageCheck, Package,
-    Edit, MapPin, Printer, ArrowLeft, User
+    MapPin, Printer, ArrowLeft, User
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, useEffect } from "react";
@@ -37,7 +37,7 @@ import {
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-type OrderStatus = "ongoing" | "delivered" | "cancelled";
+type OrderStatus = "preparing" | "ongoing" | "delivered" | "cancelled";
 
 type Order = {
     id: number;
@@ -154,9 +154,15 @@ function StatusModal({ open, onClose, onConfirm, isLoading, targetStatus, logNam
             confirmLabel: "Yes, Cancel Order",
             confirmClass: "bg-rose-600 hover:bg-rose-700 text-white",
         },
+        preparing: {
+            title: "Restore to Preparing",
+            desc: `Move the order for "${logName}" back to Preparing status.`,
+            confirmLabel: "Yes, Restore",
+            confirmClass: "bg-[#2FA9D9] hover:bg-[#2195c0] text-white",
+        },
         ongoing: {
-            title: "Restore to Ongoing",
-            desc: `Move the order for "${logName}" back to Ongoing status.`,
+            title: "Restore to Preparing",
+            desc: `Move the order for "${logName}" back to Preparing status.`,
             confirmLabel: "Yes, Restore",
             confirmClass: "bg-[#2FA9D9] hover:bg-[#2195c0] text-white",
         },
@@ -513,6 +519,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     const [pendingStatus, setPendingStatus] = useState<OrderStatus | null>(null);
     const [selectedSessionForDetails, setSelectedSessionForDetails] = useState<SessionGroup | null>(null);
     const [isSessionDetailsModalOpen, setIsSessionDetailsModalOpen] = useState(false);
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const [selectedSessionForTally, setSelectedSessionForTally] = useState<SessionGroup | null>(null);
     const [isTallyModalOpen, setIsTallyModalOpen] = useState(false);
     const [isPaymentModalOpen, setIsPaymentModalOpen] = useState(false);
@@ -520,7 +527,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     // Session State
     const [isSessionModalOpen, setIsSessionModalOpen] = useState(false);
     const statTab = "today";
-    const [sessionListTab, setSessionListTab] = useState("ongoing");
+    const [sessionListTab, setSessionListTab] = useState("preparing");
     const [paymentFilter, setPaymentFilter] = useState("all");
 
     // Selection & Bulk Action States
@@ -781,9 +788,10 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                 setBulkActionType(null);
                 router.refresh();
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            alert(err.message || "Failed to approve sessions");
+            const msg = err instanceof Error ? err.message : "Failed to approve sessions";
+            alert(msg);
         } finally {
             setIsBulkPending(false);
         }
@@ -799,15 +807,16 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                 setBulkActionType(null);
                 router.refresh();
             }
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error(err);
-            alert(err.message || "Failed to delete sessions");
+            const msg = err instanceof Error ? err.message : "Failed to delete sessions";
+            alert(msg);
         } finally {
             setIsBulkPending(false);
         }
     };
 
-    const renderGroupHeader = (sessionId: string, items: Order[]) => {
+    const renderGroupHeader = (sessionId: string) => {
         const sessionGroup = allSessions.find(g => g.sessionId === sessionId);
         if (!sessionGroup) return null;
         return (
@@ -849,7 +858,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                     customerName: log.customer_name || "Custom Customer",
                     address: log.order_sessions?.address || log.customer_address || "No Address",
                     date: log.log_date,
-                    status: log.order_sessions?.status || "ongoing", // Default to first log's status or ongoing
+                    status: log.order_sessions?.status || "preparing", // Default to first log's status or preparing
                     totalOwed: 0,
                     totalPaid,
                     balance: 0,
@@ -963,8 +972,8 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                     </Button>
                     <Button
                         variant="outline" size="icon-sm"
-                        onClick={(e) => { e.stopPropagation(); handleOpenStatusChange(item, "ongoing"); }}
-                        title="Restore to Ongoing"
+                        onClick={(e) => { e.stopPropagation(); handleOpenStatusChange(item, "preparing"); }}
+                        title="Restore to Preparing"
                         className="hover:text-[#2FA9D9]"
                     >
                         <RotateCcw className="w-3.5 h-3.5" />
@@ -989,8 +998,8 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                     </Button>
                     <Button
                         variant="outline" size="icon-sm"
-                        onClick={(e) => { e.stopPropagation(); handleOpenStatusChange(item, "ongoing"); }}
-                        title="Restore to Ongoing"
+                        onClick={(e) => { e.stopPropagation(); handleOpenStatusChange(item, "preparing"); }}
+                        title="Restore to Preparing"
                         className="hover:text-[#2FA9D9]"
                     >
                         <RotateCcw className="w-3.5 h-3.5" />
@@ -1097,11 +1106,11 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                             variant="outline" size="icon-xs"
                             onClick={(e) => {
                                 e.stopPropagation();
-                                handleOpenStatusChange(item, item.status === "ongoing" || !item.status ? "delivered" : "ongoing");
+                                handleOpenStatusChange(item, item.status === "preparing" || item.status === "ongoing" || !item.status ? "delivered" : "preparing");
                             }}
                             className="hover:text-emerald-600"
                         >
-                            {item.status === "ongoing" || !item.status ? (
+                            {item.status === "preparing" || item.status === "ongoing" || !item.status ? (
                                 <CheckCircle2 className="w-3 h-3" />
                             ) : (
                                 <RotateCcw className="w-3 h-3" />
@@ -1167,12 +1176,12 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
     const totalRevenue = filteredStatsSessions.reduce((sum, session) => sum + session.totalPaid, 0);
     const totalOrders = filteredStatsLogs.length;
 
-    const ongoingOrders = initialData.filter(log => !log.status || log.status === "ongoing");
+    const preparingOrders = initialData.filter(log => !log.status || log.status === "preparing" || log.status === "ongoing");
     const completedOrders = initialData.filter(log => log.status === "delivered");
     const cancelledOrders = initialData.filter(log => log.status === "cancelled");
 
-    const baseOrders = sessionListTab === "ongoing"
-        ? ongoingOrders
+    const baseOrders = (sessionListTab === "preparing" || sessionListTab === "ongoing")
+        ? preparingOrders
         : sessionListTab === "completed"
             ? completedOrders
             : cancelledOrders;
@@ -1185,7 +1194,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
         return true;
     });
 
-    const currentTabColumns = sessionListTab === "ongoing"
+    const currentTabColumns = (sessionListTab === "preparing" || sessionListTab === "ongoing")
         ? ongoingColumns
         : sessionListTab === "completed"
             ? deliveredColumns
@@ -1216,8 +1225,8 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                             iconColor="text-sky-600"
                         />
                         <StatCard
-                            title="Ongoing Orders"
-                            value={ongoingOrders.length.toString()}
+                            title="Preparing Orders"
+                            value={preparingOrders.length.toString()}
                             change="Active"
                             positive={true}
                             icon={Clock}
@@ -1277,7 +1286,7 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider">Order Status</label>
                             <Tabs value={sessionListTab} onValueChange={setSessionListTab} className="w-full">
                                 <TabsList className="grid grid-cols-3 w-full">
-                                    <TabsTrigger value="ongoing">Ongoing ({ongoingOrders.length})</TabsTrigger>
+                                    <TabsTrigger value="preparing">Preparing ({preparingOrders.length})</TabsTrigger>
                                     <TabsTrigger value="completed">Completed ({completedOrders.length})</TabsTrigger>
                                     <TabsTrigger value="cancelled">Cancelled ({cancelledOrders.length})</TabsTrigger>
                                 </TabsList>
@@ -1777,16 +1786,16 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                     <div className="flex-1 overflow-y-auto bg-gray-50/10 relative">
                         {activeSessionDetails && (
                             (() => {
-                                const ongoing = activeSessionDetails.logs.filter(l => !l.status || l.status === "ongoing");
+                                const preparing = activeSessionDetails.logs.filter(l => !l.status || l.status === "preparing" || l.status === "ongoing");
                                 const delivered = activeSessionDetails.logs.filter(l => l.status === "delivered");
                                 const cancelled = activeSessionDetails.logs.filter(l => l.status === "cancelled");
 
                                 return (
-                                    <Tabs defaultValue="ongoing" className="w-full flex flex-col min-h-full">
+                                    <Tabs defaultValue="preparing" className="w-full flex flex-col min-h-full">
                                         <div className="px-6 border-b border-gray-100 bg-white sticky top-0 z-10 shrink-0">
                                             <TabsList className="bg-transparent p-0 gap-0 h-auto border-0 w-full sm:w-auto flex overflow-x-auto hide-scrollbar">
-                                                <TabsTrigger value="ongoing" className="relative py-3 px-4 rounded-none text-sm data-[state=active]:text-[#2FA9D9] data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-transparent data-[state=active]:after:bg-[#2FA9D9] whitespace-nowrap">
-                                                    Ongoing ({ongoing.length})
+                                                <TabsTrigger value="preparing" className="relative py-3 px-4 rounded-none text-sm data-[state=active]:text-[#2FA9D9] data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-transparent data-[state=active]:after:bg-[#2FA9D9] whitespace-nowrap">
+                                                    Preparing ({preparing.length})
                                                 </TabsTrigger>
                                                 <TabsTrigger value="delivered" className="relative py-3 px-4 rounded-none text-sm data-[state=active]:text-emerald-600 data-[state=active]:shadow-none after:absolute after:bottom-0 after:left-0 after:right-0 after:h-0.5 after:bg-transparent data-[state=active]:after:bg-emerald-500 whitespace-nowrap">
                                                     Delivered ({delivered.length})
@@ -1801,11 +1810,11 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
                                         </div>
 
                                         <div className="p-4 sm:p-6 flex-1 bg-gray-50/50">
-                                            <TabsContent value="ongoing" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
-                                                {ongoing.length === 0 ? (
-                                                    <div className="py-12 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-100">No ongoing orders in this session</div>
+                                            <TabsContent value="preparing" className="m-0 h-full focus-visible:outline-none focus-visible:ring-0">
+                                                {preparing.length === 0 ? (
+                                                    <div className="py-12 text-center text-gray-400 text-sm bg-white rounded-xl border border-gray-100">No preparing orders in this session</div>
                                                 ) : (
-                                                    <DataTable columns={ongoingColumns} data={ongoing} keyExtractor={(item) => String(item.id)} />
+                                                    <DataTable columns={ongoingColumns} data={preparing} keyExtractor={(item) => String(item.id)} />
                                                 )}
                                             </TabsContent>
 
@@ -1980,11 +1989,12 @@ export default function OrdersClient({ initialData }: { initialData: Order[] }) 
 
 function StatusBadge({ status }: { status: string }) {
     const map: Record<string, { label: string; class: string }> = {
-        ongoing: { label: "Ongoing", class: "bg-sky-50 text-sky-700 border border-sky-200" },
+        preparing: { label: "Preparing", class: "bg-sky-50 text-sky-700 border border-sky-200" },
+        ongoing: { label: "Preparing", class: "bg-sky-50 text-sky-700 border border-sky-200" },
         delivered: { label: "Delivered", class: "bg-emerald-50 text-emerald-700 border border-emerald-200" },
         cancelled: { label: "Cancelled", class: "bg-rose-50 text-rose-700 border border-rose-200" },
     };
-    const { label, class: cls } = map[status] ?? map.ongoing;
+    const { label, class: cls } = map[status] ?? map.preparing;
     return (
         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${cls}`}>
             {label}

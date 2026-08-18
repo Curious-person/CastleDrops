@@ -31,7 +31,7 @@ export async function createLog(formData: LogInput) {
             .upsert({
                 id: formData.session_id,
                 address: formData.session_address || formData.customer_address,
-                status: formData.session_status || "ongoing"
+                status: formData.session_status || "preparing"
             });
         if (sessionError) throw new Error(sessionError.message);
     }
@@ -42,7 +42,7 @@ export async function createLog(formData: LogInput) {
 
     const { error } = await supabase
         .from("orders")
-        .insert([{ ...rest, status: formData.status ?? "ongoing" }]);
+        .insert([{ ...rest, status: formData.status ?? "preparing" }]);
 
     if (error) throw new Error(error.message);
 
@@ -60,7 +60,7 @@ export async function createLogsBulk(logs: LogInput[]) {
                 sessionsMap.set(l.session_id, {
                     id: l.session_id,
                     address: l.session_address || l.customer_address,
-                    status: l.session_status || "ongoing"
+                    status: l.session_status || "preparing"
                 });
             }
         }
@@ -68,7 +68,7 @@ export async function createLogsBulk(logs: LogInput[]) {
         const rest = { ...l };
         delete rest.session_address;
         delete rest.session_status;
-        return { ...rest, status: l.status ?? "ongoing" };
+        return { ...rest, status: l.status ?? "preparing" };
     });
 
     if (sessionsMap.size > 0) {
@@ -128,7 +128,7 @@ export async function deleteLog(id: number) {
     return { success: true };
 }
 
-export async function updateLogStatus(id: number, status: "ongoing" | "delivered" | "cancelled") {
+export async function updateLogStatus(id: number, status: "preparing" | "ongoing" | "delivered" | "cancelled") {
     const supabase = await createClient();
 
     const { error } = await supabase

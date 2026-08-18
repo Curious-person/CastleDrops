@@ -632,7 +632,7 @@ export default function SettingsPage() {
                     Product Pricing Rates
                   </h2>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    Set baseline refill rates for water types and container shapes. Pricing should be based on a per-gallon rate. Changes dynamically apply to POS calculations.
+                    Set baseline refill rates for water types and container shapes. Pricing should be based on a per-quantity rate. Changes dynamically apply to POS calculations.
                   </p>
                 </div>
                 <Separator className="bg-gray-100" />
@@ -645,7 +645,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="alkaline_round" className="text-xs font-semibold text-gray-700">Round Container Rate (₱ / Gallon)</Label>
+                      <Label htmlFor="alkaline_round" className="text-xs font-semibold text-gray-700">Round Container Rate (₱ / Quantity)</Label>
                       <div className="relative">
                         <Input
                           id="alkaline_round"
@@ -662,7 +662,7 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="alkaline_flat" className="text-xs font-semibold text-gray-700">Slim / Flat Container Rate (₱ / Gallon)</Label>
+                      <Label htmlFor="alkaline_flat" className="text-xs font-semibold text-gray-700">Slim / Flat Container Rate (₱ / Quantity)</Label>
                       <div className="relative">
                         <Input
                           id="alkaline_flat"
@@ -690,7 +690,7 @@ export default function SettingsPage() {
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div className="space-y-2">
-                      <Label htmlFor="mineral_round" className="text-xs font-semibold text-gray-700">Round Container Rate (₱ / Gallon)</Label>
+                      <Label htmlFor="mineral_round" className="text-xs font-semibold text-gray-700">Round Container Rate (₱ / Quantity)</Label>
                       <div className="relative">
                         <Input
                           id="mineral_round"
@@ -707,7 +707,7 @@ export default function SettingsPage() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label htmlFor="mineral_flat" className="text-xs font-semibold text-gray-700">Slim / Flat Container Rate (₱ / Gallon)</Label>
+                      <Label htmlFor="mineral_flat" className="text-xs font-semibold text-gray-700">Slim / Flat Container Rate (₱ / Quantity)</Label>
                       <div className="relative">
                         <Input
                           id="mineral_flat"
