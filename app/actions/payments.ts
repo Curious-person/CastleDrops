@@ -142,7 +142,7 @@ export async function createOrderAndRecordPayment(
         .upsert({
             id: sessionData.id,
             address: sessionData.address,
-            status: sessionData.status || "ongoing"
+            status: sessionData.status || "preparing"
         });
 
     if (sessionError) {
@@ -153,7 +153,7 @@ export async function createOrderAndRecordPayment(
     const ordersWithSession = orders.map(order => ({
         ...order,
         session_id: sessionData.id,
-        status: order.status || "ongoing"
+        status: order.status || "preparing"
     }));
 
     const { error: ordersError } = await supabase
